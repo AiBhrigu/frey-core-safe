@@ -1,0 +1,29 @@
+{
+  "name": "frey-core-safe",
+  "version": "0.3.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["frey", "tts", "voice", "openai", "phi"],
+  "author": "ORION Φ-Lab",
+  "license": "ISC",
+  "description": "Frey TTS Connector - Φ-Voice Output Module for OpenAI TTS",
+  "devDependencies": {
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.10.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "openai": "^4.56.0"
+  }
+}
