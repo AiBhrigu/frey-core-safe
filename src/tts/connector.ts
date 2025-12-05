@@ -6,11 +6,11 @@
  */
 
 import OpenAI from 'openai';
-import type { 
+import { 
   VoiceTemplate, 
   VoiceSegment,
   PhiPassport,
-  PHI 
+  PHI,
 } from '../types/voice.types';
 import { 
   TTSConfig, 
@@ -234,8 +234,7 @@ export class TTSConnector {
   private applyPhiSpeed(speed: number): number {
     // The golden ratio (PHI ≈ 1.618) represents balanced proportion
     // We use it to subtly adjust speed toward natural speech rhythm
-    const PHI_VALUE = 1.618033988749895;
-    const PHI_INVERSE = 1 / PHI_VALUE; // ≈ 0.618
+    const PHI_INVERSE = 1 / PHI; // ≈ 0.618
     
     // Center the speed around 1.0 using φ-proportions
     // This creates a more natural-feeling adjustment curve
