@@ -3,6 +3,8 @@
  * 
  * Orchestrates all wave components into a unified rendering system
  * with requestAnimationFrame-based zero-GC render loop.
+ * 
+ * @tag q7-integrated
  */
 
 import type { SurfaceRootConfig, PhiWaveDemoConfig, RendererOptions } from './types.js';
@@ -14,6 +16,11 @@ import { PhiSyncBus, createPhiSyncBus } from './phi-sync-bus.js';
 import { AmplitudeController, createAmplitudeController } from './amplitude-controller.js';
 import { PhaseController, createPhaseController } from './phase-controller.js';
 import { WaveFieldRenderer, createWaveFieldRenderer } from './wave-field-renderer.js';
+
+/**
+ * Q7 Integration Version
+ */
+export const Q7_VERSION = '7.0.0';
 
 /**
  * Default surface configuration
@@ -110,6 +117,23 @@ export class SurfaceRoot {
     
     this.syncBus.on('frequency-change', (event) => {
       // Handled by individual layers
+    });
+    
+    // Q7 wave channel integration
+    this.syncBus.on('q7-wave', (event) => {
+      if (event.data) {
+        const { channel, amplitude, phase } = event.data;
+        // Validate channel is non-negative and within bounds
+        if (channel !== undefined && channel >= 0 && channel < this.layers.length) {
+          const layer = this.layers[channel];
+          if (amplitude !== undefined && Number.isFinite(amplitude)) {
+            this.amplitudeController.setLayer(layer.getId(), amplitude);
+          }
+          if (phase !== undefined && Number.isFinite(phase)) {
+            this.phaseController.setLayerOffset(layer.getId(), phase);
+          }
+        }
+      }
     });
   }
   
@@ -376,6 +400,20 @@ export class SurfaceRoot {
    */
   isRunning(): boolean {
     return this.running;
+  }
+  
+  /**
+   * Get Q7 version
+   */
+  getQ7Version(): string {
+    return Q7_VERSION;
+  }
+  
+  /**
+   * Emit Q7 wave signal to a specific channel
+   */
+  emitQ7Wave(channel: number, amplitude: number, phase: number): void {
+    this.syncBus.emitQ7Wave(channel, amplitude, phase);
   }
   
   /**

@@ -15,6 +15,7 @@
  * - SurfaceRoot: Main orchestrator
  * 
  * @module phi-wave
+ * @tag q7-integrated
  */
 
 // Types
@@ -59,7 +60,7 @@ export { PhaseController, createPhaseController } from './phase-controller.js';
 export { WaveFieldRenderer, createWaveFieldRenderer } from './wave-field-renderer.js';
 
 // SurfaceRoot
-export { SurfaceRoot, createSurfaceRoot } from './surface-root.js';
+export { SurfaceRoot, createSurfaceRoot, Q7_VERSION } from './surface-root.js';
 
 // Demo
 export { generateDemoHTML, getDemoConfig } from './phi-wave-demo.js';

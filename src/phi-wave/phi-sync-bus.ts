@@ -35,7 +35,7 @@ export class PhiSyncBus {
     this.tickInterval = 1000 / ticksPerSecond;
     
     // Initialize listener maps
-    const eventTypes: SyncEvent['type'][] = ['tick', 'phase-reset', 'frequency-change', 'layer-update'];
+    const eventTypes: SyncEvent['type'][] = ['tick', 'phase-reset', 'frequency-change', 'layer-update', 'q7-wave'];
     for (const type of eventTypes) {
       this.listeners.set(type, []);
     }
@@ -188,6 +188,25 @@ export class PhiSyncBus {
       type: 'layer-update',
       timestamp: performance.now(),
       data: { layerIndex, [property]: value },
+    });
+  }
+  
+  /**
+   * Emit Q7 wave channel event
+   */
+  emitQ7Wave(channel: number, amplitude: number, phase: number): void {
+    // Validate inputs
+    if (!Number.isFinite(channel) || channel < 0 || !Number.isInteger(channel)) {
+      return;
+    }
+    if (!Number.isFinite(amplitude) || !Number.isFinite(phase)) {
+      return;
+    }
+    
+    this.emit({
+      type: 'q7-wave',
+      timestamp: performance.now(),
+      data: { channel, amplitude, phase },
     });
   }
   

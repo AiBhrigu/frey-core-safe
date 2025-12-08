@@ -22,6 +22,8 @@ import {
   createPhaseController,
   generateDemoHTML,
   getDemoConfig,
+  Q7_VERSION,
+  createSurfaceRoot,
 } from './phi-wave/index.js';
 
 describe('Phi Constants', () => {
@@ -476,5 +478,49 @@ describe('PhiWaveDemo', () => {
     
     const chaosConfig = getDemoConfig('chaos');
     expect(chaosConfig.layerCount).toBe(12);
+  });
+});
+
+describe('Q7 Integration', () => {
+  it('should export Q7_VERSION', () => {
+    expect(Q7_VERSION).toBe('7.0.0');
+  });
+
+  it('should register q7-wave channel in PhiSyncBus', () => {
+    const bus = createPhiSyncBus();
+    let received = false;
+    
+    bus.on('q7-wave', () => {
+      received = true;
+    });
+    
+    bus.emitQ7Wave(0, 0.5, Math.PI);
+    expect(received).toBe(true);
+  });
+
+  it('should emit Q7 wave events with correct data', () => {
+    const bus = createPhiSyncBus();
+    let eventData: { channel?: number; amplitude?: number; phase?: number } | undefined;
+    
+    bus.on('q7-wave', (event) => {
+      eventData = event.data as { channel?: number; amplitude?: number; phase?: number };
+    });
+    
+    bus.emitQ7Wave(2, 0.75, Math.PI / 2);
+    
+    expect(eventData).toBeDefined();
+    expect(eventData?.channel).toBe(2);
+    expect(eventData?.amplitude).toBe(0.75);
+    expect(eventData?.phase).toBe(Math.PI / 2);
+  });
+
+  it('should expose getQ7Version on SurfaceRoot', () => {
+    const surface = createSurfaceRoot();
+    expect(surface.getQ7Version()).toBe('7.0.0');
+  });
+
+  it('should expose emitQ7Wave method on SurfaceRoot', () => {
+    const surface = createSurfaceRoot();
+    expect(typeof surface.emitQ7Wave).toBe('function');
   });
 });
