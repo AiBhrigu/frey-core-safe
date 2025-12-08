@@ -1,8 +1,17 @@
-# Frey Voice Engine (v0.3)
+# Frey Core Safe
 
-**Φ-Voice Engine** — Transform plain text + phi-passport into structured voice response templates suitable for TTS.
+**Frey Core** — φ-based engines for voice synthesis and wave visualization.
 
-## Features
+- **Φ-Voice Engine (v0.3)**: Transform plain text + phi-passport into TTS templates
+- **Φ-Harmonic Wavefield Engine (v5.0)**: Zero-GC wave computation and rendering
+
+---
+
+## Φ-Voice Engine
+
+Transform plain text + phi-passport into structured voice response templates suitable for TTS.
+
+### Features
 
 - **Lane Styles**: Voice style presets with distinct characteristics
   - `calm` - Peaceful and measured delivery
@@ -22,13 +31,13 @@
   - Rate and pitch overrides
   - Resonance depth control (1-3 layers)
 
-## Installation
+### Installation
 
 ```bash
 npm install frey-core-safe
 ```
 
-## Usage
+### Usage
 
 ```typescript
 import { generateVoiceTemplate, createPhiPassport } from 'frey-core-safe';
@@ -110,9 +119,156 @@ for (const segment of segments) {
 }
 ```
 
+---
+
+## Φ-Harmonic Wavefield Engine (v5.0)
+
+A zero-GC render system using golden ratio (φ) based harmonics for natural wave pattern generation and visualization.
+
+### Features
+
+- **WaveKernel**: Core wave computation with pre-allocated buffers
+- **PhiHarmonicMap**: Harmonic frequency mapping based on φ (φ^n scaling)
+- **WaveFieldRenderer**: Zero-GC canvas renderer with multiple modes
+- **WaveLayer**: Layer composition with blend modes
+- **PhiSyncBus**: Event synchronization for component coordination
+- **AmplitudeController**: Amplitude control with envelope (attack/release)
+- **PhaseController**: Phase control with φ-grid synchronization
+- **SurfaceRoot**: Main orchestrator integrating all components
+
+### Zero-GC Design
+
+The engine is designed for smooth 60fps+ rendering with no garbage collection during render loops:
+
+- Pre-allocated Float32Array buffers for wave data
+- Object pooling and buffer reuse
+- No object allocations in hot paths
+- Deterministic φ-based mathematics
+
+### Usage
+
+```typescript
+import { 
+  createSurfaceRoot,
+  createWaveKernel,
+  createPhiHarmonicMap,
+  PHI,
+  PHI_ANGLE
+} from 'frey-core-safe';
+
+// Create the main surface
+const surface = createSurfaceRoot({
+  width: 800,
+  height: 600,
+  targetFps: 60,
+  autoStart: true,
+});
+
+// Initialize with a canvas element
+surface.init('my-canvas');
+
+// Start rendering
+surface.start();
+
+// Control amplitude
+surface.setAmplitude(0.8);
+
+// Change render mode
+surface.setRenderMode('gradient'); // 'points' | 'lines' | 'mesh' | 'gradient'
+
+// Apply preset
+surface.applyPreset('harmonic'); // 'default' | 'calm' | 'energetic' | 'harmonic' | 'chaos'
+```
+
+### Working with Individual Components
+
+```typescript
+import {
+  createWaveKernel,
+  createPhiHarmonicMap,
+  createPhiLayerStack,
+  createAmplitudeController,
+  createPhaseController,
+} from 'frey-core-safe';
+
+// Create harmonic map with base frequency
+const harmonicMap = createPhiHarmonicMap(0.5, 8);
+
+// Get harmonics
+const fundamental = harmonicMap.getHarmonic(0);
+const firstHarmonic = harmonicMap.getHarmonic(1);
+
+console.log('Fundamental frequency ratio:', fundamental.frequencyRatio); // 1
+console.log('First harmonic frequency ratio:', firstHarmonic.frequencyRatio); // φ ≈ 1.618
+
+// Create wave kernel
+const kernel = createWaveKernel({ resolution: 64 }, harmonicMap);
+
+// Compute frame
+const frameData = kernel.compute(performance.now());
+console.log('Amplitudes:', frameData.amplitudes);
+console.log('Phases:', frameData.phases);
+
+// Create φ-based layer stack
+const layers = createPhiLayerStack(0.5, 5, 64);
+// Creates 5 layers with φ-scaled frequencies and φ-decayed amplitudes
+```
+
+### Demo Page
+
+Generate a standalone HTML demo page:
+
+```typescript
+import { generateDemoHTML, getDemoConfig } from 'frey-core-safe';
+
+// Get preset configuration
+const config = getDemoConfig('harmonic');
+console.log(config);
+// { preset: 'harmonic', layerCount: 5, baseFrequency: 0.618, ... }
+
+// Generate full HTML page
+const html = generateDemoHTML({
+  preset: 'default',
+  showControls: true,
+  showStats: true,
+});
+
+// Write to file or serve
+// fs.writeFileSync('phi-wave-demo.html', html);
+```
+
+### Render Modes
+
+| Mode | Description |
+|------|-------------|
+| `points` | Individual points sized by amplitude |
+| `lines` | Horizontal waveform lines |
+| `mesh` | Connected mesh grid |
+| `gradient` | Filled gradient cells |
+
+### Color Schemes
+
+| Scheme | Description |
+|--------|-------------|
+| `phi-spectrum` | φ-based hue rotation |
+| `monochrome` | Grayscale intensity |
+| `heat` | Black → Red → Yellow → White |
+
+### Presets
+
+| Preset | Layers | Base Frequency | Character |
+|--------|--------|----------------|-----------|
+| `default` | 5 | 0.5 Hz | Balanced |
+| `calm` | 3 | 0.2 Hz | Peaceful |
+| `energetic` | 8 | 1.5 Hz | Dynamic |
+| `harmonic` | 5 | 0.618 Hz (1/φ) | Resonant |
+| `chaos` | 12 | 2.0 Hz | Complex |
+
+---
+
 ## API Reference
 
-### Types
+### Voice Engine Types
 
 #### `PhiPassport`
 ```typescript
@@ -157,7 +313,44 @@ interface GoldenSegment {
 }
 ```
 
-### Functions
+### Wavefield Engine Types
+
+#### `WaveKernelConfig`
+```typescript
+interface WaveKernelConfig {
+  resolution: number;    // Grid points per axis (default: 64)
+  width: number;         // Field width (default: 1.0)
+  height: number;        // Field height (default: 1.0)
+  timeScale: number;     // Time multiplier (default: 1.0)
+  damping: number;       // Damping factor 0-1 (default: 0.98)
+}
+```
+
+#### `WaveLayerConfig`
+```typescript
+interface WaveLayerConfig {
+  id: string;                    // Layer identifier
+  harmonicMultiplier: number;    // φ-based frequency multiplier
+  baseFrequency: number;         // Base frequency (Hz)
+  amplitudeScale: number;        // Amplitude scale (0-1)
+  phaseOffset: number;           // Phase offset (radians)
+  blendMode: 'add' | 'multiply' | 'screen' | 'overlay';
+  opacity: number;               // Layer opacity (0-1)
+  enabled: boolean;              // Enable state
+}
+```
+
+#### `PhiHarmonic`
+```typescript
+interface PhiHarmonic {
+  index: number;           // Harmonic index (0 = fundamental)
+  frequencyRatio: number;  // φ^index
+  amplitudeRatio: number;  // φ^(-index)
+  phaseShift: number;      // Golden angle × index
+}
+```
+
+### Voice Engine Functions
 
 | Function | Description |
 |----------|-------------|
@@ -171,12 +364,32 @@ interface GoldenSegment {
 | `estimateTotalDuration(segments, style)` | Estimate total duration |
 | `calculateAvgWordsPerSegment(segments)` | Calculate average words |
 
+### Wavefield Engine Functions
+
+| Function | Description |
+|----------|-------------|
+| `createSurfaceRoot(config)` | Create main orchestrator |
+| `createWaveKernel(config, harmonicMap)` | Create wave computation kernel |
+| `createPhiHarmonicMap(baseFreq, count)` | Create harmonic map |
+| `createWaveLayer(config, resolution)` | Create single wave layer |
+| `createPhiLayerStack(baseFreq, count, res)` | Create φ-scaled layer stack |
+| `createPhiSyncBus(ticksPerSec)` | Create sync event bus |
+| `createAmplitudeController()` | Create amplitude controller |
+| `createPhaseController()` | Create phase controller |
+| `createWaveFieldRenderer(options)` | Create canvas renderer |
+| `generateDemoHTML(config)` | Generate demo HTML page |
+| `getDemoConfig(preset)` | Get preset configuration |
+
 ### Constants
 
 | Constant | Value | Description |
 |----------|-------|-------------|
 | `PHI` | 1.618033988749895 | The golden ratio |
-| `VOICE_ENGINE_VERSION` | '0.3.0' | Engine version |
+| `PHI_INV` | 0.618033988749895 | Inverse golden ratio (1/φ) |
+| `PHI_ANGLE` | 2.399963229728653 | Golden angle (2π/φ²) |
+| `VOICE_ENGINE_VERSION` | '0.3.0' | Voice engine version |
+
+---
 
 ## Development
 
@@ -196,11 +409,13 @@ npm run test:watch
 
 ## Φ-Structure Principles
 
-This engine follows φ-structure principles:
+This library follows φ-structure principles:
 
-1. **Clarity**: Clean, well-documented API
-2. **Modularity**: Separate concerns (styles, segments, engine)
-3. **Resonance Layers**: Configurable depth for segment classification
+1. **Clarity**: Clean, well-documented APIs
+2. **Modularity**: Separate concerns (voice, waves, rendering)
+3. **Resonance Layers**: Configurable depth for layered effects
+4. **Deterministic Math**: Reproducible φ-based calculations
+5. **Zero-GC**: Pre-allocated buffers for smooth rendering
 
 ## License
 
