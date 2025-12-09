@@ -24,6 +24,14 @@ import {
   getDemoConfig,
   Q7_VERSION,
   createSurfaceRoot,
+  // Q7.1 - Preset HotSwitch
+  PhiPresetHotSwitch,
+  createPresetHotSwitch,
+  Q7_HOTSWITCH_VERSION,
+  // Q7.3 - Signature Engine
+  WaveSignatureEngine,
+  createSignatureEngine,
+  Q7_SIGNATURE_VERSION,
 } from './phi-wave/index.js';
 
 describe('Phi Constants', () => {
@@ -522,5 +530,223 @@ describe('Q7 Integration', () => {
   it('should expose emitQ7Wave method on SurfaceRoot', () => {
     const surface = createSurfaceRoot();
     expect(typeof surface.emitQ7Wave).toBe('function');
+  });
+});
+
+describe('Q7.1 - Preset HotSwitch', () => {
+  let hotswitch: PhiPresetHotSwitch;
+
+  beforeEach(() => {
+    hotswitch = createPresetHotSwitch('default');
+  });
+
+  it('should export Q7_HOTSWITCH_VERSION', () => {
+    expect(Q7_HOTSWITCH_VERSION).toBe('7.1.0');
+  });
+
+  it('should create with initial preset', () => {
+    expect(hotswitch.getCurrentPreset()).toBe('default');
+  });
+
+  it('should get current preset config', () => {
+    const config = hotswitch.getCurrentConfig();
+    expect(config.id).toBe('default');
+    expect(config.layerCount).toBe(5);
+    expect(config.baseFrequency).toBe(0.5);
+  });
+
+  it('should switch to valid preset', () => {
+    const event = hotswitch.switchPreset('calm');
+    expect(event.success).toBe(true);
+    expect(event.fromPreset).toBe('default');
+    expect(event.toPreset).toBe('calm');
+    expect(event.fallback).toBe(false);
+    expect(hotswitch.getCurrentPreset()).toBe('calm');
+  });
+
+  it('should fallback to default for invalid preset', () => {
+    const event = hotswitch.switchPreset('invalid' as any);
+    expect(event.success).toBe(true);
+    expect(event.fallback).toBe(true);
+    expect(hotswitch.getCurrentPreset()).toBe('default');
+  });
+
+  it('should validate preset IDs', () => {
+    expect(hotswitch.validatePreset('default')).toBe(true);
+    expect(hotswitch.validatePreset('calm')).toBe(true);
+    expect(hotswitch.validatePreset('invalid')).toBe(false);
+  });
+
+  it('should get all presets', () => {
+    const presets = hotswitch.getAllPresets();
+    expect(presets.length).toBe(5);
+    expect(presets.map(p => p.id)).toContain('default');
+    expect(presets.map(p => p.id)).toContain('calm');
+    expect(presets.map(p => p.id)).toContain('harmonic');
+  });
+
+  it('should record switch history', () => {
+    hotswitch.switchPreset('calm');
+    hotswitch.switchPreset('energetic');
+    const history = hotswitch.getSwitchHistory();
+    expect(history.length).toBe(2);
+    expect(history[0].toPreset).toBe('calm');
+    expect(history[1].toPreset).toBe('energetic');
+  });
+
+  it('should notify listeners on switch', () => {
+    let notified = false;
+    let receivedEvent: any;
+
+    hotswitch.onSwitch((event) => {
+      notified = true;
+      receivedEvent = event;
+    });
+
+    hotswitch.switchPreset('harmonic');
+    expect(notified).toBe(true);
+    expect(receivedEvent.toPreset).toBe('harmonic');
+  });
+
+  it('should unsubscribe listeners', () => {
+    let count = 0;
+    const unsubscribe = hotswitch.onSwitch(() => {
+      count++;
+    });
+
+    hotswitch.switchPreset('calm');
+    expect(count).toBe(1);
+
+    unsubscribe();
+    hotswitch.switchPreset('energetic');
+    expect(count).toBe(1); // Not called after unsubscribe
+  });
+
+  it('should clear history', () => {
+    hotswitch.switchPreset('calm');
+    hotswitch.switchPreset('energetic');
+    expect(hotswitch.getSwitchHistory().length).toBe(2);
+
+    hotswitch.clearHistory();
+    expect(hotswitch.getSwitchHistory().length).toBe(0);
+  });
+
+  it('should integrate with SurfaceRoot', () => {
+    const surface = createSurfaceRoot();
+    expect(surface.getCurrentPreset()).toBe('default');
+
+    surface.switchPreset('harmonic');
+    expect(surface.getCurrentPreset()).toBe('harmonic');
+  });
+});
+
+describe('Q7.3 - Signature Engine', () => {
+  let engine: WaveSignatureEngine;
+  let kernel: WaveKernel;
+
+  beforeEach(() => {
+    engine = createSignatureEngine();
+    kernel = createWaveKernel({ resolution: 8 });
+  });
+
+  it('should export Q7_SIGNATURE_VERSION', () => {
+    expect(Q7_SIGNATURE_VERSION).toBe('7.3.0');
+  });
+
+  it('should compute signature from frame data', () => {
+    const frameData = kernel.compute(1000);
+    const signature = engine.computeSignature(frameData, 8);
+
+    expect(signature).toBeDefined();
+    expect(signature.amplitude).toBeGreaterThanOrEqual(0);
+    expect(signature.gradient).toBeGreaterThanOrEqual(0);
+    expect(signature.lambda).toBeGreaterThanOrEqual(0);
+    expect(signature.variance).toBeGreaterThanOrEqual(0);
+    expect(signature.timestamp).toBe(1000);
+    expect(signature.frameIndex).toBe(0);
+  });
+
+  it('should record signature history', () => {
+    // Compute and record first signature
+    const frameData1 = kernel.compute(1000);
+    const sig1 = engine.computeSignature(frameData1, 8);
+    const timestamp1 = sig1.timestamp;
+    
+    // Compute and record second signature
+    const frameData2 = kernel.compute(2000);
+    const sig2 = engine.computeSignature(frameData2, 8);
+    const timestamp2 = sig2.timestamp;
+
+    const history = engine.getSignatureHistory();
+    expect(history.length).toBe(2);
+    expect(history[0].timestamp).toBe(timestamp1);
+    expect(history[1].timestamp).toBe(timestamp2);
+  });
+
+  it('should get last signature', () => {
+    const frameData = kernel.compute(1000);
+    engine.computeSignature(frameData, 8);
+
+    const lastSig = engine.getLastSignature();
+    expect(lastSig).not.toBeNull();
+    expect(lastSig!.timestamp).toBe(1000);
+  });
+
+  it('should clear history', () => {
+    const frameData = kernel.compute(1000);
+    engine.computeSignature(frameData, 8);
+    expect(engine.getSignatureHistory().length).toBe(1);
+
+    engine.clearHistory();
+    expect(engine.getSignatureHistory().length).toBe(0);
+  });
+
+  it('should respect sample rate option', () => {
+    const fastEngine = createSignatureEngine({ sampleRate: 2 });
+    const frameData = kernel.compute(1000);
+
+    const sig = fastEngine.computeSignature(frameData, 8);
+    expect(sig).toBeDefined();
+  });
+
+  it('should compute selective metrics', () => {
+    const selectiveEngine = createSignatureEngine({
+      computeGradient: false,
+      computeLambda: false,
+      computeVariance: true,
+    });
+
+    const frameData = kernel.compute(1000);
+    const sig = selectiveEngine.computeSignature(frameData, 8);
+
+    expect(sig.amplitude).toBeGreaterThanOrEqual(0);
+    expect(sig.gradient).toBe(0); // Disabled
+    expect(sig.lambda).toBe(0); // Disabled
+    expect(sig.variance).toBeGreaterThanOrEqual(0);
+  });
+
+  it('should integrate with SurfaceRoot', () => {
+    const surface = createSurfaceRoot();
+    const engine = surface.getSignatureEngine();
+
+    expect(engine).toBeDefined();
+    expect(engine.getVersion()).toBe('7.3.0');
+  });
+
+  it('should compute signatures in render loop', () => {
+    const surface = createSurfaceRoot();
+    const engine = surface.getSignatureEngine();
+    
+    // Initially no signature
+    expect(surface.getLastSignature()).toBeNull();
+    
+    // Manually trigger computation like the render loop would
+    const kernel = surface.getKernel();
+    const frameData = kernel.compute(1000);
+    const signature = engine.computeSignature(frameData, 64);
+
+    // Engine has the signature
+    expect(engine.getLastSignature()).not.toBeNull();
+    expect(signature.timestamp).toBe(1000);
   });
 });

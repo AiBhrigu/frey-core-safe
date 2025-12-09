@@ -13,9 +13,13 @@
  * - AmplitudeController: Amplitude control with envelope
  * - PhaseController: Phase control with φ-sync
  * - SurfaceRoot: Main orchestrator
+ * - PhiPresetHotSwitch (Q7.1): Runtime preset switching
+ * - WaveSignatureEngine (Q7.3): Wave signature computation
  * 
  * @module phi-wave
  * @tag q7-integrated
+ * @tag q7.1-preset-hotswitch
+ * @tag q7.3-signature-engine
  */
 
 // Types
@@ -61,6 +65,14 @@ export { WaveFieldRenderer, createWaveFieldRenderer } from './wave-field-rendere
 
 // SurfaceRoot
 export { SurfaceRoot, createSurfaceRoot, Q7_VERSION } from './surface-root.js';
+
+// Q7.1 - Preset HotSwitch
+export type { PresetId, PresetConfig, PresetHotSwitchEvent, PresetSwitchListener } from './preset-hotswitch.js';
+export { PhiPresetHotSwitch, createPresetHotSwitch, Q7_HOTSWITCH_VERSION } from './preset-hotswitch.js';
+
+// Q7.3 - Signature Engine
+export type { WaveSignature, SignatureOptions } from './signature-engine.js';
+export { WaveSignatureEngine, createSignatureEngine, Q7_SIGNATURE_VERSION } from './signature-engine.js';
 
 // Demo
 export { generateDemoHTML, getDemoConfig } from './phi-wave-demo.js';

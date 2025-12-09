@@ -5,6 +5,8 @@
  * with requestAnimationFrame-based zero-GC render loop.
  * 
  * @tag q7-integrated
+ * @tag q7.1-preset-hotswitch
+ * @tag q7.3-signature-engine
  */
 
 import type { SurfaceRootConfig, PhiWaveDemoConfig, RendererOptions } from './types.js';
@@ -16,6 +18,8 @@ import { PhiSyncBus, createPhiSyncBus } from './phi-sync-bus.js';
 import { AmplitudeController, createAmplitudeController } from './amplitude-controller.js';
 import { PhaseController, createPhaseController } from './phase-controller.js';
 import { WaveFieldRenderer, createWaveFieldRenderer } from './wave-field-renderer.js';
+import { PhiPresetHotSwitch, createPresetHotSwitch, type PresetId } from './preset-hotswitch.js';
+import { WaveSignatureEngine, createSignatureEngine, type WaveSignature } from './signature-engine.js';
 
 /**
  * Q7 Integration Version
@@ -34,31 +38,7 @@ const DEFAULT_CONFIG: SurfaceRootConfig = {
   targetFps: 60,
 };
 
-/**
- * Preset configurations
- */
-const PRESETS: Record<PhiWaveDemoConfig['preset'], Partial<PhiWaveDemoConfig>> = {
-  default: {
-    layerCount: 5,
-    baseFrequency: 0.5,
-  },
-  calm: {
-    layerCount: 3,
-    baseFrequency: 0.2,
-  },
-  energetic: {
-    layerCount: 8,
-    baseFrequency: 1.5,
-  },
-  harmonic: {
-    layerCount: 5,
-    baseFrequency: 0.618, // 1/φ
-  },
-  chaos: {
-    layerCount: 12,
-    baseFrequency: 2.0,
-  },
-};
+
 
 /**
  * SurfaceRoot class - main engine orchestrator
@@ -75,6 +55,13 @@ export class SurfaceRoot {
   private amplitudeController: AmplitudeController;
   private phaseController: PhaseController;
   private renderer: WaveFieldRenderer;
+  
+  // Q7.1 - Preset HotSwitch
+  private presetHotSwitch: PhiPresetHotSwitch;
+  
+  // Q7.3 - Signature Engine
+  private signatureEngine: WaveSignatureEngine;
+  private lastSignature: WaveSignature | null = null;
   
   // Render loop state
   private running: boolean = false;
@@ -98,6 +85,12 @@ export class SurfaceRoot {
     this.amplitudeController = createAmplitudeController();
     this.phaseController = createPhaseController();
     this.renderer = createWaveFieldRenderer({ debug: false });
+    
+    // Q7.1 - Initialize preset hotswitch
+    this.presetHotSwitch = createPresetHotSwitch('default');
+    
+    // Q7.3 - Initialize signature engine
+    this.signatureEngine = createSignatureEngine();
     
     // Pre-allocate composite buffer
     this.compositeBuffer = new Float32Array(this.kernel.getPointCount());
@@ -133,6 +126,14 @@ export class SurfaceRoot {
             this.phaseController.setLayerOffset(layer.getId(), phase);
           }
         }
+      }
+    });
+    
+    // Q7.1 - Preset hotswitch listener
+    this.presetHotSwitch.onSwitch((event) => {
+      if (event.success) {
+        const config = this.presetHotSwitch.getCurrentConfig();
+        this.applyPreset(config.id);
       }
     });
   }
@@ -227,6 +228,9 @@ export class SurfaceRoot {
       frameData.amplitudes[i] = this.compositeBuffer[i] * globalAmp;
     }
     
+    // Q7.3 - Compute wave signature
+    this.lastSignature = this.signatureEngine.computeSignature(frameData, this.resolution);
+    
     // Render
     this.renderer.render(frameData, this.resolution);
     
@@ -266,12 +270,16 @@ export class SurfaceRoot {
    * Apply a preset configuration
    */
   applyPreset(preset: PhiWaveDemoConfig['preset']): void {
-    const presetConfig = PRESETS[preset];
+    const presetConfig = this.presetHotSwitch.getPresetConfig(preset);
+    if (!presetConfig) {
+      // Invalid preset, use current config
+      return;
+    }
     
     // Recreate layers with new configuration
     this.layers = createPhiLayerStack(
-      presetConfig.baseFrequency ?? 0.5,
-      presetConfig.layerCount ?? 5,
+      presetConfig.baseFrequency,
+      presetConfig.layerCount,
       this.resolution
     );
     
@@ -414,6 +422,41 @@ export class SurfaceRoot {
    */
   emitQ7Wave(channel: number, amplitude: number, phase: number): void {
     this.syncBus.emitQ7Wave(channel, amplitude, phase);
+  }
+  
+  /**
+   * Q7.1 - Get preset hotswitch
+   */
+  getPresetHotSwitch(): PhiPresetHotSwitch {
+    return this.presetHotSwitch;
+  }
+  
+  /**
+   * Q7.1 - Switch preset via hotswitch
+   */
+  switchPreset(presetId: PresetId): void {
+    this.presetHotSwitch.switchPreset(presetId);
+  }
+  
+  /**
+   * Q7.1 - Get current preset
+   */
+  getCurrentPreset(): PresetId {
+    return this.presetHotSwitch.getCurrentPreset();
+  }
+  
+  /**
+   * Q7.3 - Get signature engine
+   */
+  getSignatureEngine(): WaveSignatureEngine {
+    return this.signatureEngine;
+  }
+  
+  /**
+   * Q7.3 - Get last computed signature
+   */
+  getLastSignature(): WaveSignature | null {
+    return this.lastSignature ? { ...this.lastSignature } : null;
   }
   
   /**
