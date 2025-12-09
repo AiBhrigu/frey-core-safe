@@ -10,6 +10,7 @@
  * @tag q7.3-pattern-classifier
  * @tag q7.4-emergent
  * @tag q7.5-adaptive-memory
+ * @tag q7.6-resonance
  */
 
 import type { SurfaceRootConfig, PhiWaveDemoConfig, RendererOptions } from './types.js';
@@ -26,6 +27,7 @@ import { WaveSignatureEngine, createSignatureEngine, type WaveSignature } from '
 import { PhiPatternClassifier, createPatternClassifier, type PatternClassification } from './pattern-classifier.js';
 import { PhiEmergentEngine, createEmergentEngine, type EmergentClassification } from './emergent-engine.js';
 import { PhiAdaptiveMemory, createAdaptiveMemory, type MemoryState } from './adaptive-memory.js';
+import { PhiResonanceEngine, createResonanceEngine, type ResonanceClassification } from './resonance-engine.js';
 
 /**
  * Q7 Integration Version
@@ -81,6 +83,10 @@ export class SurfaceRoot {
   private adaptiveMemory: PhiAdaptiveMemory;
   private lastMemoryState: MemoryState | null = null;
   
+  // Q7.6-R - Resonance Engine
+  private resonanceEngine: PhiResonanceEngine;
+  private lastResonance: ResonanceClassification | null = null;
+  
   // Render loop state
   private running: boolean = false;
   private animationFrameId: number | null = null;
@@ -118,6 +124,9 @@ export class SurfaceRoot {
     
     // Q7.5-A - Initialize adaptive memory
     this.adaptiveMemory = createAdaptiveMemory();
+    
+    // Q7.6-R - Initialize resonance engine
+    this.resonanceEngine = createResonanceEngine();
     
     // Pre-allocate composite buffer
     this.compositeBuffer = new Float32Array(this.kernel.getPointCount());
@@ -201,6 +210,14 @@ export class SurfaceRoot {
           this.lastSignature.gradient
         );
       }
+    });
+    
+    // Q7.6-R - Resonance engine listener
+    // Subscription placeholder for future resonance-triggered behaviors
+    // (e.g., adaptive tuning, burst detection handlers, collapse recovery)
+    // Event emission is handled in render loop
+    this.resonanceEngine.subscribe((resonance) => {
+      // TODO: Implement resonance-triggered adaptive behaviors
     });
   }
   
@@ -313,6 +330,22 @@ export class SurfaceRoot {
       data: this.lastMemoryState,
     });
     
+    // Q7.6-R - Compute resonance (non-blocking)
+    this.lastResonance = this.resonanceEngine.compute(
+      frameData,
+      this.lastSignature,
+      this.lastPattern,
+      this.lastEmergent,
+      this.lastMemoryState
+    );
+    
+    // Emit resonance:update via sync bus
+    this.syncBus.emit({
+      type: 'resonance:update',
+      timestamp: now,
+      data: this.lastResonance,
+    });
+    
     // Render
     this.renderer.render(frameData, this.resolution);
     
@@ -395,6 +428,27 @@ export class SurfaceRoot {
    */
   setDebug(debug: boolean): void {
     this.renderer.setDebug(debug);
+  }
+  
+  /**
+   * Get resonance engine (Q7.6-R)
+   */
+  getResonanceEngine(): PhiResonanceEngine {
+    return this.resonanceEngine;
+  }
+  
+  /**
+   * Get last resonance classification (Q7.6-R)
+   */
+  getLastResonance(): ResonanceClassification | null {
+    return this.lastResonance;
+  }
+  
+  /**
+   * Get current resonance state (Q7.6-R)
+   */
+  getResonanceState(): string | null {
+    return this.lastResonance?.state ?? null;
   }
   
   /**

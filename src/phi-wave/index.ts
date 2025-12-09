@@ -72,6 +72,32 @@
  * This memory layer powers future modules: predictive behavior, coherent state evolution,
  * resonance modeling (Q7.6), and conversational memory for the Frey voice/semantic layer.
  * 
+ * ## Q7.6 Resonance Engine Layer
+ * 
+ * The Resonance Engine extracts harmonic, subharmonic, and emergent resonance signatures
+ * from the complete Q7 stack (signature → pattern → emergent → memory).
+ * 
+ * ### Resonance Spectrum Extraction
+ * 
+ * Computes three types of harmonic projections:
+ * 
+ * - **Amplitude Harmonics** (H1..H7): φ-weighted amplitude sampling at harmonic intervals
+ * - **Gradient Harmonics** (H1..H7): φ^n scaling of gradient signatures
+ * - **Lambda Harmonics** (λH1..λH7): λ^n projections where λ = φ² - 1 ≈ 1.618
+ * 
+ * ### Key Metrics
+ * 
+ * - **Resonance Stability Index (RSI)**: Composite measure of φ-consistency, spectral stability, and memory weight
+ * - **Harmonic Drift Metric (HDM)**: Long-term drift of resonance peaks weighted by Markov transitions
+ * - **Resonance State**: 5-state classification (harmonic-stable/rising/falling, resonance-burst/collapse)
+ * 
+ * ### Integration Philosophy
+ * 
+ * While patterns (Q7.3-P) detect micro-states and emergence (Q7.4-E) detects macro-behaviors,
+ * resonance (Q7.6-R) captures the spectral signature of the wavefield's φ-harmonic structure.
+ * This enables detection of resonance phenomena that emerge from the interaction of all
+ * system layers, forming the foundation for coherent state evolution and adaptive tuning.
+ * 
  * @module phi-wave
  * @tag q7-integrated
  * @tag q7.1-preset-hotswitch
@@ -79,6 +105,7 @@
  * @tag q7.3-pattern-classifier
  * @tag q7.4-emergent
  * @tag q7.5-adaptive-memory
+ * @tag q7.6-resonance
  */
 
 // Types
@@ -144,6 +171,10 @@ export { PhiEmergentEngine, createEmergentEngine, Q7_EMERGENT_VERSION } from './
 // Q7.5-A - Adaptive Memory
 export type { MemoryState, MemoryListener, MemoryEventType } from './adaptive-memory.js';
 export { PhiAdaptiveMemory, createAdaptiveMemory, Q7_MEMORY_VERSION } from './adaptive-memory.js';
+
+// Q7.6-R - Resonance Engine
+export type { ResonanceState, ResonanceSpectrum, ResonanceClassification, ResonanceListener } from './resonance-engine.js';
+export { PhiResonanceEngine, createResonanceEngine, Q7_RESONANCE_VERSION } from './resonance-engine.js';
 
 // Demo
 export { generateDemoHTML, getDemoConfig } from './phi-wave-demo.js';

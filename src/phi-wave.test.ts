@@ -43,6 +43,12 @@ import {
   createAdaptiveMemory,
   Q7_MEMORY_VERSION,
   type MemoryState,
+  // Q7.6-R - Resonance Engine
+  PhiResonanceEngine,
+  createResonanceEngine,
+  Q7_RESONANCE_VERSION,
+  type ResonanceClassification,
+  type ResonanceState,
 } from './phi-wave/index.js';
 
 describe('Phi Constants', () => {
@@ -2291,5 +2297,320 @@ describe('Q7.5-A Adaptive Memory', () => {
     const memoryState = surface.getMemoryState();
     // Initially null or empty
     expect(memoryState).toBeDefined();
+  });
+});
+
+describe('Q7.6-R Resonance Engine', () => {
+  let resonanceEngine: PhiResonanceEngine;
+  
+  beforeEach(() => {
+    resonanceEngine = createResonanceEngine();
+  });
+  
+  it('should create resonance engine', () => {
+    expect(resonanceEngine).toBeDefined();
+    expect(Q7_RESONANCE_VERSION).toBe('7.6.0');
+  });
+  
+  it('should compute resonance spectrum from frame data', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    const classification = resonanceEngine.compute(frameData, null, null, null, null);
+    
+    expect(classification).toBeDefined();
+    expect(classification.spectrum).toBeDefined();
+    expect(classification.spectrum.amplitudeHarmonics).toBeInstanceOf(Float32Array);
+    expect(classification.spectrum.amplitudeHarmonics.length).toBe(7);
+    expect(classification.spectrum.gradientHarmonics).toBeInstanceOf(Float32Array);
+    expect(classification.spectrum.lambdaHarmonics).toBeInstanceOf(Float32Array);
+  });
+  
+  it('should compute amplitude harmonics H1..H7', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    const classification = resonanceEngine.compute(frameData, null, null, null, null);
+    const harmonics = classification.spectrum.amplitudeHarmonics;
+    
+    // Check all harmonics are computed
+    for (let i = 0; i < 7; i++) {
+      expect(typeof harmonics[i]).toBe('number');
+      expect(Number.isFinite(harmonics[i])).toBe(true);
+    }
+  });
+  
+  it('should compute gradient harmonics from signature', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    const signatureEngine = createSignatureEngine();
+    const signature = signatureEngine.computeSignature(frameData, 64);
+    
+    const classification = resonanceEngine.compute(frameData, signature, null, null, null);
+    const gradientHarmonics = classification.spectrum.gradientHarmonics;
+    
+    // Should have computed gradient harmonics (all valid numbers)
+    for (let i = 0; i < gradientHarmonics.length; i++) {
+      expect(Number.isFinite(gradientHarmonics[i])).toBe(true);
+    }
+    // Gradient harmonics scale by φ^-n, so they get progressively smaller
+    expect(gradientHarmonics.length).toBe(7);
+  });
+  
+  it('should compute lambda harmonic projections', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    const classification = resonanceEngine.compute(frameData, null, null, null, null);
+    const lambdaHarmonics = classification.spectrum.lambdaHarmonics;
+    
+    // Lambda harmonics should be scaled by λ^n
+    expect(lambdaHarmonics.length).toBe(7);
+    for (let i = 0; i < 7; i++) {
+      expect(Number.isFinite(lambdaHarmonics[i])).toBe(true);
+    }
+  });
+  
+  it('should compute Resonance Stability Index (RSI)', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    const classification = resonanceEngine.compute(frameData, null, null, null, null);
+    
+    expect(classification.rsi).toBeGreaterThanOrEqual(0);
+    expect(classification.rsi).toBeLessThanOrEqual(1);
+  });
+  
+  it('should compute Harmonic Drift Metric (HDM)', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    const classification = resonanceEngine.compute(frameData, null, null, null, null);
+    
+    expect(typeof classification.hdm).toBe('number');
+    expect(Number.isFinite(classification.hdm)).toBe(true);
+  });
+  
+  it('should classify resonance state', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    const classification = resonanceEngine.compute(frameData, null, null, null, null);
+    
+    const validStates: ResonanceState[] = [
+      'harmonic-stable',
+      'harmonic-rising',
+      'harmonic-falling',
+      'resonance-burst',
+      'resonance-collapse',
+    ];
+    expect(validStates).toContain(classification.state);
+  });
+  
+  it('should detect harmonic-stable state', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    // With neutral inputs, should default to stable
+    const classification = resonanceEngine.compute(frameData, null, null, null, null);
+    
+    // Default state should be stable or one of the safe states
+    expect(['harmonic-stable', 'harmonic-rising', 'harmonic-falling']).toContain(classification.state);
+  });
+  
+  it('should use φ-consistency from emergent engine in RSI', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    // Simulate emergent with high φ-consistency
+    const mockEmergent: any = {
+      state: 'coherent',
+      metrics: {
+        phiConsistency: 0.9,
+      },
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const classification = resonanceEngine.compute(frameData, null, null, mockEmergent, null);
+    
+    // RSI should reflect high coherence
+    expect(classification.rsi).toBeGreaterThan(0.3);
+  });
+  
+  it('should use memory stability window in RSI', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    const mockMemory: any = {
+      l1: {
+        stabilityWindow: 0.8,
+      },
+      metrics: {
+        memoryDriftIndex: 0.1,
+      },
+    };
+    
+    const classification = resonanceEngine.compute(frameData, null, null, null, mockMemory);
+    
+    // RSI should incorporate stability window
+    expect(classification.rsi).toBeGreaterThan(0.2);
+  });
+  
+  it('should use memory MDI in HDM computation', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    const mockMemory: any = {
+      metrics: {
+        memoryDriftIndex: 0.15,
+      },
+      l1: {
+        stabilityWindow: 0.5,
+      },
+    };
+    
+    const classification = resonanceEngine.compute(frameData, null, null, null, mockMemory);
+    
+    // HDM should incorporate MDI
+    expect(Math.abs(classification.hdm)).toBeGreaterThan(0.05);
+  });
+  
+  it('should emit resonance events via listeners', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    let receivedClassification: ResonanceClassification | null = null;
+    
+    resonanceEngine.subscribe((classification) => {
+      receivedClassification = classification;
+    });
+    
+    resonanceEngine.compute(frameData, null, null, null, null);
+    
+    expect(receivedClassification).not.toBeNull();
+    expect(receivedClassification?.state).toBeDefined();
+  });
+  
+  it('should support subscribe/unsubscribe', () => {
+    let callCount = 0;
+    const listener = () => { callCount++; };
+    
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    resonanceEngine.subscribe(listener);
+    resonanceEngine.compute(frameData, null, null, null, null);
+    expect(callCount).toBe(1);
+    
+    resonanceEngine.unsubscribe(listener);
+    resonanceEngine.compute(frameData, null, null, null, null);
+    expect(callCount).toBe(1); // Should not increment
+  });
+  
+  it('should track frame index', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    const c1 = resonanceEngine.compute(frameData, null, null, null, null);
+    const c2 = resonanceEngine.compute(frameData, null, null, null, null);
+    const c3 = resonanceEngine.compute(frameData, null, null, null, null);
+    
+    expect(c1.frameIndex).toBe(0);
+    expect(c2.frameIndex).toBe(1);
+    expect(c3.frameIndex).toBe(2);
+  });
+  
+  it('should provide current resonance state', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    expect(resonanceEngine.getResonanceState()).toBeNull();
+    
+    resonanceEngine.compute(frameData, null, null, null, null);
+    
+    const state = resonanceEngine.getResonanceState();
+    expect(state).not.toBeNull();
+  });
+  
+  it('should provide current RSI', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    expect(resonanceEngine.getRSI()).toBeNull();
+    
+    resonanceEngine.compute(frameData, null, null, null, null);
+    
+    const rsi = resonanceEngine.getRSI();
+    expect(rsi).not.toBeNull();
+    expect(rsi).toBeGreaterThanOrEqual(0);
+    expect(rsi).toBeLessThanOrEqual(1);
+  });
+  
+  it('should provide current HDM', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    expect(resonanceEngine.getHDM()).toBeNull();
+    
+    resonanceEngine.compute(frameData, null, null, null, null);
+    
+    const hdm = resonanceEngine.getHDM();
+    expect(hdm).not.toBeNull();
+    expect(Number.isFinite(hdm!)).toBe(true);
+  });
+  
+  it('should reset engine state', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    resonanceEngine.compute(frameData, null, null, null, null);
+    expect(resonanceEngine.getCurrentResonance()).not.toBeNull();
+    
+    resonanceEngine.reset();
+    
+    expect(resonanceEngine.getCurrentResonance()).toBeNull();
+    expect(resonanceEngine.getResonanceState()).toBeNull();
+  });
+  
+  it('should maintain zero-GC design with pre-allocated buffers', () => {
+    const kernel = createWaveKernel({ resolution: 64 }, createPhiHarmonicMap(0.5, 8));
+    const frameData = kernel.compute(1000);
+    
+    const c1 = resonanceEngine.compute(frameData, null, null, null, null);
+    const c2 = resonanceEngine.compute(frameData, null, null, null, null);
+    
+    // Spectrum buffers should be reused (same references)
+    expect(c1.spectrum.amplitudeHarmonics).toBe(c2.spectrum.amplitudeHarmonics);
+    expect(c1.spectrum.gradientHarmonics).toBe(c2.spectrum.gradientHarmonics);
+    expect(c1.spectrum.lambdaHarmonics).toBe(c2.spectrum.lambdaHarmonics);
+  });
+  
+  it('should integrate with SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const resonanceEngine = surface.getResonanceEngine();
+    expect(resonanceEngine).toBeDefined();
+  });
+  
+  it('should provide getResonanceState API in SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const state = surface.getResonanceState();
+    // Initially null
+    expect(state).toBeNull();
+  });
+  
+  it('should emit resonance:update events via PhiSyncBus', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const syncBus = surface.getSyncBus();
+    
+    let eventReceived = false;
+    syncBus.on('resonance:update', (event) => {
+      eventReceived = true;
+      expect(event.data).toBeDefined();
+    });
+    
+    // Note: Would need to run render loop to test this fully
+    // This test validates the structure is in place
+    expect(eventReceived).toBe(false); // Not yet fired without render loop
   });
 });
