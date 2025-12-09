@@ -38,6 +38,8 @@ import {
   Q7_PATTERN_VERSION,
   type PatternClassification,
   type WaveSignature,
+  // Q7.4-E - Emergent Engine
+  type EmergentClassification,
   // Q7.5-A - Adaptive Memory
   PhiAdaptiveMemory,
   createAdaptiveMemory,
@@ -49,6 +51,12 @@ import {
   Q7_RESONANCE_VERSION,
   type ResonanceClassification,
   type ResonanceState,
+  // Q7.7 - Coherence Stabilizer
+  PhiCoherenceStabilizer,
+  createCoherenceStabilizer,
+  Q7_COHERENCE_VERSION,
+  type CoherenceState,
+  type PhaseCoherenceMetric,
 } from './phi-wave/index.js';
 
 describe('Phi Constants', () => {
@@ -2612,5 +2620,352 @@ describe('Q7.6-R Resonance Engine', () => {
     // Note: Would need to run render loop to test this fully
     // This test validates the structure is in place
     expect(eventReceived).toBe(false); // Not yet fired without render loop
+  });
+});
+
+// Q7.7 - Coherence Stabilizer Tests
+describe('Q7.7 - PhiCoherenceStabilizer', () => {
+  let coherenceStabilizer: PhiCoherenceStabilizer;
+  
+  beforeEach(() => {
+    coherenceStabilizer = createCoherenceStabilizer();
+  });
+  
+  it('should export Q7_COHERENCE_VERSION', () => {
+    expect(Q7_COHERENCE_VERSION).toBe('7.7.0');
+  });
+  
+  it('should create stabilizer with default config', () => {
+    expect(coherenceStabilizer).toBeDefined();
+    expect(coherenceStabilizer.getStabilityEnvelope()).toBe(0);
+  });
+  
+  it('should compute stability envelope from signatures', () => {
+    const sig1: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.1,
+      lambda: 1.5,
+      variance: 0.05,
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    const sig2: WaveSignature = {
+      amplitude: 0.6,
+      gradient: 0.12,
+      lambda: 1.5,
+      variance: 0.06,
+      timestamp: 1100,
+      frameIndex: 2,
+    };
+    
+    coherenceStabilizer.process(sig1, null, null, null, 0);
+    coherenceStabilizer.process(sig2, null, null, null, 0);
+    
+    // Should have smoothed values
+    expect(coherenceStabilizer.getSmoothedAmplitude()).toBeGreaterThan(0);
+    expect(coherenceStabilizer.getStabilityEnvelope()).toBeGreaterThan(0);
+  });
+  
+  it('should apply φ-attenuation to extreme variance', () => {
+    const sigLow: WaveSignature = {
+      amplitude: 0.1,
+      gradient: 0.01,
+      lambda: 1.5,
+      variance: 0.6, // High variance relative to amplitude
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    coherenceStabilizer.process(sigLow, null, null, null, 0);
+    
+    // Smoothed variance should be attenuated by φ^-1
+    const smoothedVar = coherenceStabilizer.getSmoothedVariance();
+    expect(smoothedVar).toBeLessThan(0.6);
+  });
+  
+  it('should activate drift dampening when memory drift exceeds threshold', () => {
+    const state = coherenceStabilizer.process(null, null, null, null, 0.2); // High drift
+    
+    expect(state.driftDampeningActive).toBe(true);
+    expect(state.dampeningFactor).toBeCloseTo(PHI_INV, 5);
+  });
+  
+  it('should decay drift dampening after configured frames', () => {
+    // Activate dampening
+    coherenceStabilizer.process(null, null, null, null, 0.2);
+    
+    // Process for dampening frames (default: 3)
+    coherenceStabilizer.process(null, null, null, null, 0.0);
+    coherenceStabilizer.process(null, null, null, null, 0.0);
+    coherenceStabilizer.process(null, null, null, null, 0.0);
+    
+    // Should be reset now
+    const state = coherenceStabilizer.process(null, null, null, null, 0.0);
+    expect(state.driftDampeningActive).toBe(false);
+    expect(state.dampeningFactor).toBe(1.0);
+  });
+  
+  it('should compute Phase Coherence Metric (PCM)', () => {
+    const pattern: PatternClassification = {
+      state: 'ascending',
+      amplitude: 0.5,
+      gradient: 0.1,
+      variance: 0.05,
+      lambda: 1.5,
+      metrics: {
+        amplitudeDelta: 0.1,
+        gradientSign: 1,
+        lambdaStability: 0.9,
+        varianceBurst: false,
+        trendReversals: 0,
+      },
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const emergent: EmergentClassification = {
+      state: 'coherent',
+      phiConsistency: 0.8,
+      patternFrequency: {
+        stable: 0.1,
+        ascending: 0.6,
+        descending: 0.2,
+        volatile: 0.05,
+        chaotic: 0.05,
+      },
+      reversalCycles: 0,
+      amplitudeDrift: 0.05,
+      varianceRegime: 0.1,
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const resonance: ResonanceClassification = {
+      state: 'harmonic-stable',
+      spectrum: {
+        amplitudeHarmonics: new Float32Array(7),
+        gradientHarmonics: new Float32Array(7),
+        lambdaHarmonics: new Float32Array(7),
+      },
+      rsi: 0.85,
+      hdm: 0.05,
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const state = coherenceStabilizer.process(null, pattern, emergent, resonance, 0);
+    
+    expect(state.pcm).toBeDefined();
+    expect(state.pcm.value).toBeGreaterThan(0);
+    expect(state.pcm.value).toBeLessThanOrEqual(1);
+    expect(state.pcm.patternEmergentAlign).toBeDefined();
+    expect(state.pcm.emergentResonanceAlign).toBeDefined();
+  });
+  
+  it('should classify PCM as high for aligned states', () => {
+    const pattern: PatternClassification = {
+      state: 'ascending',
+      amplitude: 0.5,
+      gradient: 0.1,
+      variance: 0.05,
+      lambda: 1.5,
+      metrics: {
+        amplitudeDelta: 0.1,
+        gradientSign: 1,
+        lambdaStability: 0.9,
+        varianceBurst: false,
+        trendReversals: 0,
+      },
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const emergent: EmergentClassification = {
+      state: 'coherent',
+      phiConsistency: 0.8,
+      patternFrequency: {
+        stable: 0.1,
+        ascending: 0.6,
+        descending: 0.2,
+        volatile: 0.05,
+        chaotic: 0.05,
+      },
+      reversalCycles: 0,
+      amplitudeDrift: 0.05,
+      varianceRegime: 0.1,
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const resonance: ResonanceClassification = {
+      state: 'harmonic-stable',
+      spectrum: {
+        amplitudeHarmonics: new Float32Array(7),
+        gradientHarmonics: new Float32Array(7),
+        lambdaHarmonics: new Float32Array(7),
+      },
+      rsi: 0.85,
+      hdm: 0.05,
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const state = coherenceStabilizer.process(null, pattern, emergent, resonance, 0);
+    
+    // High alignment: ascending + coherent + harmonic-stable
+    expect(state.coherence).toBe('high');
+  });
+  
+  it('should classify PCM as unstable for misaligned states', () => {
+    const pattern: PatternClassification = {
+      state: 'chaotic',
+      amplitude: 0.5,
+      gradient: 0.3,
+      variance: 0.4,
+      lambda: 1.5,
+      metrics: {
+        amplitudeDelta: 0.3,
+        gradientSign: 1,
+        lambdaStability: 0.3,
+        varianceBurst: true,
+        trendReversals: 5,
+      },
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const emergent: EmergentClassification = {
+      state: 'turbulent',
+      phiConsistency: 0.1,
+      patternFrequency: {
+        stable: 0.0,
+        ascending: 0.1,
+        descending: 0.1,
+        volatile: 0.5,
+        chaotic: 0.3,
+      },
+      reversalCycles: 3,
+      amplitudeDrift: 0.3,
+      varianceRegime: 0.4,
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const resonance: ResonanceClassification = {
+      state: 'resonance-burst',
+      spectrum: {
+        amplitudeHarmonics: new Float32Array(7),
+        gradientHarmonics: new Float32Array(7),
+        lambdaHarmonics: new Float32Array(7),
+      },
+      rsi: 0.2,
+      hdm: 0.3,
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const state = coherenceStabilizer.process(null, pattern, emergent, resonance, 0);
+    
+    // Low alignment: chaotic + turbulent + burst
+    expect(state.coherence).toBe('unstable');
+  });
+  
+  it('should detect burst softening when resonance-burst occurs', () => {
+    const resonance: ResonanceClassification = {
+      state: 'resonance-burst',
+      spectrum: {
+        amplitudeHarmonics: new Float32Array(7),
+        gradientHarmonics: new Float32Array(7),
+        lambdaHarmonics: new Float32Array(7),
+      },
+      rsi: 0.3,
+      hdm: 0.2,
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    const state = coherenceStabilizer.process(null, null, null, resonance, 0);
+    
+    expect(state.burstSofteningActive).toBe(true);
+  });
+  
+  it('should apply burst softening factor to resonance impact', () => {
+    const impact = 1.0;
+    const softened = coherenceStabilizer.applyBurstSoftening(impact);
+    
+    // Should be reduced by φ^-1
+    expect(softened).toBeCloseTo(PHI_INV, 3);
+  });
+  
+  it('should emit coherence updates to listeners', () => {
+    let receivedState: CoherenceState | null = null;
+    
+    coherenceStabilizer.subscribe((state) => {
+      receivedState = state;
+    });
+    
+    const state = coherenceStabilizer.process(null, null, null, null, 0);
+    
+    expect(receivedState).not.toBeNull();
+    expect(receivedState!.timestamp).toBe(state.timestamp);
+  });
+  
+  it('should support unsubscribe from listeners', () => {
+    let callCount = 0;
+    
+    const listener = () => {
+      callCount++;
+    };
+    
+    coherenceStabilizer.subscribe(listener);
+    coherenceStabilizer.process(null, null, null, null, 0);
+    expect(callCount).toBe(1);
+    
+    coherenceStabilizer.unsubscribe(listener);
+    coherenceStabilizer.process(null, null, null, null, 0);
+    expect(callCount).toBe(1); // Should not increment
+  });
+  
+  it('should reset stabilizer state', () => {
+    const sig: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.1,
+      lambda: 1.5,
+      variance: 0.05,
+      timestamp: 1000,
+      frameIndex: 1,
+    };
+    
+    coherenceStabilizer.process(sig, null, null, null, 0.2);
+    expect(coherenceStabilizer.getSmoothedAmplitude()).toBeGreaterThan(0);
+    
+    coherenceStabilizer.reset();
+    
+    expect(coherenceStabilizer.getSmoothedAmplitude()).toBe(0);
+    expect(coherenceStabilizer.getPCM()).toBeNull();
+    expect(coherenceStabilizer.getDampeningFactor()).toBe(1.0);
+  });
+  
+  it('should integrate with SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const stabilizer = surface.getCoherenceStabilizer();
+    
+    expect(stabilizer).toBeDefined();
+  });
+  
+  it('should provide getCoherence API in SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const coherence = surface.getCoherence();
+    
+    // Initially null
+    expect(coherence).toBeNull();
+  });
+  
+  it('should provide getPCM API in SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const pcm = surface.getPCM();
+    
+    // Initially null
+    expect(pcm).toBeNull();
   });
 });

@@ -28,6 +28,7 @@ import { PhiPatternClassifier, createPatternClassifier, type PatternClassificati
 import { PhiEmergentEngine, createEmergentEngine, type EmergentClassification } from './emergent-engine.js';
 import { PhiAdaptiveMemory, createAdaptiveMemory, type MemoryState } from './adaptive-memory.js';
 import { PhiResonanceEngine, createResonanceEngine, type ResonanceClassification } from './resonance-engine.js';
+import { PhiCoherenceStabilizer, createCoherenceStabilizer, type CoherenceState } from './coherence-stabilizer.js';
 
 /**
  * Q7 Integration Version
@@ -87,6 +88,10 @@ export class SurfaceRoot {
   private resonanceEngine: PhiResonanceEngine;
   private lastResonance: ResonanceClassification | null = null;
   
+  // Q7.7 - Coherence Stabilizer
+  private coherenceStabilizer: PhiCoherenceStabilizer;
+  private lastCoherence: CoherenceState | null = null;
+  
   // Render loop state
   private running: boolean = false;
   private animationFrameId: number | null = null;
@@ -127,6 +132,9 @@ export class SurfaceRoot {
     
     // Q7.6-R - Initialize resonance engine
     this.resonanceEngine = createResonanceEngine();
+    
+    // Q7.7 - Initialize coherence stabilizer
+    this.coherenceStabilizer = createCoherenceStabilizer();
     
     // Pre-allocate composite buffer
     this.compositeBuffer = new Float32Array(this.kernel.getPointCount());
@@ -344,6 +352,23 @@ export class SurfaceRoot {
       type: 'resonance:update',
       timestamp: now,
       data: this.lastResonance,
+    });
+    
+    // Q7.7 - Compute coherence (non-blocking)
+    const memoryDrift = this.lastMemoryState ? this.lastMemoryState.metrics.memoryDriftIndex : 0;
+    this.lastCoherence = this.coherenceStabilizer.process(
+      this.lastSignature,
+      this.lastPattern,
+      this.lastEmergent,
+      this.lastResonance,
+      memoryDrift
+    );
+    
+    // Emit coherence:update via sync bus
+    this.syncBus.emit({
+      type: 'coherence:update',
+      timestamp: now,
+      data: this.lastCoherence,
     });
     
     // Render
@@ -635,6 +660,27 @@ export class SurfaceRoot {
    */
   getMemoryState(): MemoryState | null {
     return this.lastMemoryState ? { ...this.lastMemoryState } : null;
+  }
+  
+  /**
+   * Q7.7 - Get coherence stabilizer
+   */
+  getCoherenceStabilizer(): PhiCoherenceStabilizer {
+    return this.coherenceStabilizer;
+  }
+  
+  /**
+   * Q7.7 - Get current coherence state
+   */
+  getCoherence(): CoherenceState | null {
+    return this.lastCoherence ? { ...this.lastCoherence } : null;
+  }
+  
+  /**
+   * Q7.7 - Get Phase Coherence Metric (PCM)
+   */
+  getPCM(): CoherenceState['pcm'] | null {
+    return this.lastCoherence ? this.lastCoherence.pcm : null;
   }
   
   /**

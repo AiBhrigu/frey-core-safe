@@ -18,6 +18,8 @@
  * - PhiPatternClassifier (Q7.3-P): Core interpretation layer
  * - PhiEmergentEngine (Q7.4-E): Emergent behavior detection
  * - PhiAdaptiveMemory (Q7.5-A): Adaptive memory engine
+ * - PhiResonanceEngine (Q7.6-R): Resonance spectrum extraction
+ * - PhiCoherenceStabilizer (Q7.7): Coherence stabilization layer
  * 
  * ## Q7.4 Emergent Behavior Layer
  * 
@@ -98,6 +100,41 @@
  * This enables detection of resonance phenomena that emerge from the interaction of all
  * system layers, forming the foundation for coherent state evolution and adaptive tuning.
  * 
+ * ## Q7.7 Coherence Stabilizer Layer
+ * 
+ * The Coherence Stabilizer is the final Q7 module that introduces a stabilizing coherence
+ * layer between Pattern → Emergent → Memory → Resonance to reduce phase-shifts and
+ * unstable harmonic jumps.
+ * 
+ * ### Purpose
+ * 
+ * Reduces instability when:
+ * - Preset switches occur
+ * - Resonance bursts appear
+ * - Memory drift spikes
+ * - Emergent states oscillate too fast
+ * 
+ * ### Key Features
+ * 
+ * 1. **Stability Envelope**: Smooths amplitude and gradient over last 5 signatures with
+ *    φ-attenuation for extreme variance
+ * 2. **Phase Coherence Metric (PCM)**: Computes alignment between pattern/emergent/resonance
+ *    layers (range: 0..1)
+ * 3. **Drift Dampening**: Detects when memory drift exceeds threshold and applies φ^-1
+ *    dampening for 3 frames
+ * 4. **Burst Softening**: Reduces resonance-burst impact on emergent state by φ^-1 factor
+ * 
+ * ### Coherence States
+ * 
+ * - **high**: PCM ≥ 0.8 (excellent layer alignment)
+ * - **medium**: PCM ≥ 0.6 (good alignment)
+ * - **low**: PCM ≥ 0.4 (marginal alignment)
+ * - **unstable**: PCM < 0.4 (poor alignment, instability present)
+ * 
+ * The stabilizer completes the Q7 stack by ensuring smooth interaction between all
+ * interpretation layers, preventing cascade failures and maintaining system coherence
+ * during rapid state transitions.
+ * 
  * @module phi-wave
  * @tag q7-integrated
  * @tag q7.1-preset-hotswitch
@@ -106,6 +143,7 @@
  * @tag q7.4-emergent
  * @tag q7.5-adaptive-memory
  * @tag q7.6-resonance
+ * @tag q7.7-coherence-stabilizer
  */
 
 // Types
@@ -175,6 +213,10 @@ export { PhiAdaptiveMemory, createAdaptiveMemory, Q7_MEMORY_VERSION } from './ad
 // Q7.6-R - Resonance Engine
 export type { ResonanceState, ResonanceSpectrum, ResonanceClassification, ResonanceListener } from './resonance-engine.js';
 export { PhiResonanceEngine, createResonanceEngine, Q7_RESONANCE_VERSION } from './resonance-engine.js';
+
+// Q7.7 - Coherence Stabilizer
+export type { CoherenceState, PhaseCoherenceMetric, CoherenceListener } from './coherence-stabilizer.js';
+export { PhiCoherenceStabilizer, createCoherenceStabilizer, Q7_COHERENCE_VERSION } from './coherence-stabilizer.js';
 
 // Demo
 export { generateDemoHTML, getDemoConfig } from './phi-wave-demo.js';
