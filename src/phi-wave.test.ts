@@ -38,6 +38,11 @@ import {
   Q7_PATTERN_VERSION,
   type PatternClassification,
   type WaveSignature,
+  // Q7.5-A - Adaptive Memory
+  PhiAdaptiveMemory,
+  createAdaptiveMemory,
+  Q7_MEMORY_VERSION,
+  type MemoryState,
 } from './phi-wave/index.js';
 
 describe('Phi Constants', () => {
@@ -1810,5 +1815,481 @@ describe('PhiEmergentEngine (Q7.4-E)', () => {
     expect(emergent).not.toBeNull();
     expect(emergent!.confidence).toBeGreaterThan(0);
     expect(emergent!.confidence).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('Q7.5-A Adaptive Memory', () => {
+  let memory: PhiAdaptiveMemory;
+
+  beforeEach(() => {
+    memory = createAdaptiveMemory();
+  });
+
+  it('should export Q7_MEMORY_VERSION', () => {
+    expect(Q7_MEMORY_VERSION).toBe('7.5.0');
+  });
+
+  it('should create with default configuration', () => {
+    const mem = createAdaptiveMemory();
+    const state = mem.getMemoryState();
+    expect(state.l0.frameCount).toBe(0);
+    expect(state.l1.patternCount).toBe(0);
+    expect(state.l2.eventCount).toBe(0);
+  });
+
+  it('should create with custom configuration', () => {
+    const mem = createAdaptiveMemory({
+      l0Capacity: 30,
+      l1Capacity: 100,
+      l2Capacity: 10,
+    });
+    const state = mem.getMemoryState();
+    expect(state).toBeDefined();
+  });
+
+  it('should feed emergent states into L0', () => {
+    const emergent = {
+      state: 'coherent' as const,
+      confidence: 0.8,
+      timestamp: 100,
+      metrics: {
+        phiConsistency: 0.5,
+        patternFrequencies: {
+          stable: 0.5,
+          ascending: 0.3,
+          descending: 0.1,
+          volatile: 0.05,
+          chaotic: 0.05,
+        },
+        reversalCycles: 0,
+        amplitudeDrift: 0.1,
+        varianceRegime: 1.5,
+      },
+    };
+
+    memory.feedEmergent(emergent, 0.5, 1.0, 0.02);
+    const state = memory.getMemoryState();
+    expect(state.l0.frameCount).toBe(1);
+    expect(state.l0.recentEmergentState).toBe('coherent');
+  });
+
+  it('should feed patterns into L1', () => {
+    const pattern: PatternClassification = {
+      state: 'stable',
+      confidence: 0.9,
+      timestamp: 100,
+      metrics: {
+        amplitudeDelta: 0.01,
+        gradientSign: 0.0,
+        lambdaStability: 0.1,
+        varianceBurst: 1.0,
+        trendReversals: 0,
+      },
+    };
+
+    memory.feedPattern(pattern);
+    const state = memory.getMemoryState();
+    expect(state.l1.patternCount).toBe(1);
+    expect(state.l1.stateFrequencies.stable).toBeGreaterThan(0);
+  });
+
+  it('should feed events into L2', () => {
+    memory.feedEvent('preset-switch', { preset: 'calm' });
+    memory.feedEvent('signature-spike', { amplitude: 2.5 });
+
+    const state = memory.getMemoryState();
+    expect(state.l2.eventCount).toBeGreaterThan(0);
+    expect(state.l2.recentEvents).toContain('preset-switch');
+    expect(state.l2.recentEvents).toContain('signature-spike');
+  });
+
+  it('should compute L0 metrics correctly', () => {
+    const emergent = {
+      state: 'coherent' as const,
+      confidence: 0.8,
+      timestamp: 100,
+      metrics: {
+        phiConsistency: 0.5,
+        patternFrequencies: {
+          stable: 0.5,
+          ascending: 0.3,
+          descending: 0.1,
+          volatile: 0.05,
+          chaotic: 0.05,
+        },
+        reversalCycles: 0,
+        amplitudeDrift: 0.1,
+        varianceRegime: 1.5,
+      },
+    };
+
+    // Feed multiple emergent states
+    for (let i = 0; i < 5; i++) {
+      memory.feedEmergent(emergent, 0.5 + i * 0.1, 1.0 + i * 0.2, 0.02);
+    }
+
+    const state = memory.getMemoryState();
+    expect(state.l0.frameCount).toBe(5);
+    expect(state.l0.avgAmplitude).toBeGreaterThan(0);
+    expect(state.l0.avgVariance).toBeGreaterThan(0);
+  });
+
+  it('should compute L1 state frequencies', () => {
+    const patterns: PatternClassification[] = [
+      {
+        state: 'stable',
+        confidence: 0.9,
+        timestamp: 100,
+        metrics: {
+          amplitudeDelta: 0.01,
+          gradientSign: 0.0,
+          lambdaStability: 0.1,
+          varianceBurst: 1.0,
+          trendReversals: 0,
+        },
+      },
+      {
+        state: 'ascending',
+        confidence: 0.85,
+        timestamp: 200,
+        metrics: {
+          amplitudeDelta: 0.05,
+          gradientSign: 0.05,
+          lambdaStability: 0.1,
+          varianceBurst: 1.2,
+          trendReversals: 0,
+        },
+      },
+      {
+        state: 'stable',
+        confidence: 0.9,
+        timestamp: 300,
+        metrics: {
+          amplitudeDelta: 0.01,
+          gradientSign: 0.0,
+          lambdaStability: 0.1,
+          varianceBurst: 1.0,
+          trendReversals: 0,
+        },
+      },
+    ];
+
+    patterns.forEach(p => memory.feedPattern(p));
+
+    const state = memory.getMemoryState();
+    expect(state.l1.stateFrequencies.stable).toBeCloseTo(2 / 3, 5);
+    expect(state.l1.stateFrequencies.ascending).toBeCloseTo(1 / 3, 5);
+  });
+
+  it('should build transition matrix from patterns', () => {
+    const patterns: PatternClassification[] = [
+      {
+        state: 'stable',
+        confidence: 0.9,
+        timestamp: 100,
+        metrics: {
+          amplitudeDelta: 0.01,
+          gradientSign: 0.0,
+          lambdaStability: 0.1,
+          varianceBurst: 1.0,
+          trendReversals: 0,
+        },
+      },
+      {
+        state: 'ascending',
+        confidence: 0.85,
+        timestamp: 200,
+        metrics: {
+          amplitudeDelta: 0.05,
+          gradientSign: 0.05,
+          lambdaStability: 0.1,
+          varianceBurst: 1.2,
+          trendReversals: 0,
+        },
+      },
+      {
+        state: 'stable',
+        confidence: 0.9,
+        timestamp: 300,
+        metrics: {
+          amplitudeDelta: 0.01,
+          gradientSign: 0.0,
+          lambdaStability: 0.1,
+          varianceBurst: 1.0,
+          trendReversals: 0,
+        },
+      },
+    ];
+
+    patterns.forEach(p => memory.feedPattern(p));
+
+    // Transition matrix should track stable -> ascending -> stable
+    const state = memory.getMemoryState();
+    expect(state.l1.patternCount).toBe(3);
+  });
+
+  it('should compute Memory Drift Index (MDI)', () => {
+    const emergentStates = [
+      'coherent' as const,
+      'coherent' as const,
+      'drifting' as const,
+      'drifting' as const,
+      'turbulent' as const,
+    ];
+
+    emergentStates.forEach((state, i) => {
+      memory.feedEmergent(
+        {
+          state,
+          confidence: 0.8,
+          timestamp: i * 100,
+          metrics: {
+            phiConsistency: 0.5,
+            patternFrequencies: {
+              stable: 0.5,
+              ascending: 0.3,
+              descending: 0.1,
+              volatile: 0.05,
+              chaotic: 0.05,
+            },
+            reversalCycles: 0,
+            amplitudeDrift: 0.1,
+            varianceRegime: 1.5,
+          },
+        },
+        0.5,
+        1.0,
+        0.02
+      );
+    });
+
+    const state = memory.getMemoryState();
+    expect(state.metrics.memoryDriftIndex).toBeGreaterThanOrEqual(0);
+  });
+
+  it('should compute Predictive Gradient Index (PGI)', () => {
+    const patterns: PatternClassification[] = [];
+
+    // Create pattern sequence with directional trend
+    for (let i = 0; i < 10; i++) {
+      patterns.push({
+        state: i < 7 ? 'ascending' : 'descending',
+        confidence: 0.9,
+        timestamp: i * 100,
+        metrics: {
+          amplitudeDelta: 0.05,
+          gradientSign: i < 7 ? 0.05 : -0.05,
+          lambdaStability: 0.1,
+          varianceBurst: 1.2,
+          trendReversals: 0,
+        },
+      });
+    }
+
+    patterns.forEach(p => memory.feedPattern(p));
+
+    const state = memory.getMemoryState();
+    expect(state.l1.predictiveGradientIndex).toBeDefined();
+    // PGI should reflect directional bias (ascending - descending)
+  });
+
+  it('should compute Stability Window', () => {
+    const patterns: PatternClassification[] = [];
+
+    // Create stable pattern sequence
+    for (let i = 0; i < 20; i++) {
+      patterns.push({
+        state: 'stable',
+        confidence: 0.9,
+        timestamp: i * 100,
+        metrics: {
+          amplitudeDelta: 0.01,
+          gradientSign: 0.0,
+          lambdaStability: 0.1,
+          varianceBurst: 1.0,
+          trendReversals: 0,
+        },
+      });
+    }
+
+    patterns.forEach(p => memory.feedPattern(p));
+
+    const state = memory.getMemoryState();
+    expect(state.l1.stabilityWindow).toBeGreaterThan(0);
+    expect(state.l1.stabilityWindow).toBeLessThanOrEqual(1);
+  });
+
+  it('should predict emergent state from Markov transitions', () => {
+    const patterns: PatternClassification[] = [];
+
+    // Create pattern sequence
+    for (let i = 0; i < 20; i++) {
+      patterns.push({
+        state: i % 2 === 0 ? 'stable' : 'ascending',
+        confidence: 0.9,
+        timestamp: i * 100,
+        metrics: {
+          amplitudeDelta: 0.03,
+          gradientSign: i % 2 === 0 ? 0.0 : 0.05,
+          lambdaStability: 0.1,
+          varianceBurst: 1.1,
+          trendReversals: 0,
+        },
+      });
+    }
+
+    patterns.forEach(p => memory.feedPattern(p));
+
+    const predicted = memory.getPredictedEmergentState();
+    // With alternating stable/ascending patterns, prediction should be deterministic
+    expect(predicted).toBeDefined();
+  });
+
+  it('should handle ring buffer overflow (L0)', () => {
+    const emergent = {
+      state: 'coherent' as const,
+      confidence: 0.8,
+      timestamp: 100,
+      metrics: {
+        phiConsistency: 0.5,
+        patternFrequencies: {
+          stable: 0.5,
+          ascending: 0.3,
+          descending: 0.1,
+          volatile: 0.05,
+          chaotic: 0.05,
+        },
+        reversalCycles: 0,
+        amplitudeDrift: 0.1,
+        varianceRegime: 1.5,
+      },
+    };
+
+    // Feed more than L0 capacity (default 60)
+    for (let i = 0; i < 70; i++) {
+      memory.feedEmergent(emergent, 0.5, 1.0, 0.02);
+    }
+
+    const state = memory.getMemoryState();
+    expect(state.l0.frameCount).toBe(60); // Should cap at capacity
+  });
+
+  it('should handle ring buffer overflow (L1)', () => {
+    const pattern: PatternClassification = {
+      state: 'stable',
+      confidence: 0.9,
+      timestamp: 100,
+      metrics: {
+        amplitudeDelta: 0.01,
+        gradientSign: 0.0,
+        lambdaStability: 0.1,
+        varianceBurst: 1.0,
+        trendReversals: 0,
+      },
+    };
+
+    // Feed more than L1 capacity (default 200)
+    for (let i = 0; i < 210; i++) {
+      memory.feedPattern({ ...pattern, timestamp: i * 100 });
+    }
+
+    const state = memory.getMemoryState();
+    expect(state.l1.patternCount).toBe(200); // Should cap at capacity
+  });
+
+  it('should handle ring buffer overflow (L2)', () => {
+    // Feed more than L2 capacity (default 20)
+    for (let i = 0; i < 25; i++) {
+      memory.feedEvent('pattern-change', { index: i });
+    }
+
+    const state = memory.getMemoryState();
+    expect(state.l2.eventCount).toBeLessThanOrEqual(20);
+  });
+
+  it('should support subscribe/unsubscribe pattern', () => {
+    let notificationCount = 0;
+    const listener = (state: MemoryState) => {
+      notificationCount++;
+    };
+
+    memory.subscribe(listener);
+    memory.update();
+    expect(notificationCount).toBe(1);
+
+    memory.unsubscribe(listener);
+    memory.update();
+    expect(notificationCount).toBe(1); // Should not increment
+  });
+
+  it('should emit memory:update events via update()', () => {
+    let updateCount = 0;
+    memory.subscribe((state) => {
+      updateCount++;
+      expect(state).toBeDefined();
+    });
+
+    memory.update();
+    memory.update();
+    expect(updateCount).toBe(2);
+  });
+
+  it('should reset all memory layers', () => {
+    // Populate all layers
+    const pattern: PatternClassification = {
+      state: 'stable',
+      confidence: 0.9,
+      timestamp: 100,
+      metrics: {
+        amplitudeDelta: 0.01,
+        gradientSign: 0.0,
+        lambdaStability: 0.1,
+        varianceBurst: 1.0,
+        trendReversals: 0,
+      },
+    };
+
+    const emergent = {
+      state: 'coherent' as const,
+      confidence: 0.8,
+      timestamp: 100,
+      metrics: {
+        phiConsistency: 0.5,
+        patternFrequencies: {
+          stable: 0.5,
+          ascending: 0.3,
+          descending: 0.1,
+          volatile: 0.05,
+          chaotic: 0.05,
+        },
+        reversalCycles: 0,
+        amplitudeDrift: 0.1,
+        varianceRegime: 1.5,
+      },
+    };
+
+    memory.feedPattern(pattern);
+    memory.feedEmergent(emergent, 0.5, 1.0, 0.02);
+    memory.feedEvent('preset-switch', {});
+
+    memory.reset();
+
+    const state = memory.getMemoryState();
+    expect(state.l0.frameCount).toBe(0);
+    expect(state.l1.patternCount).toBe(0);
+    expect(state.l2.eventCount).toBe(0);
+  });
+
+  it('should integrate with SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const adaptiveMemory = surface.getAdaptiveMemory();
+    expect(adaptiveMemory).toBeDefined();
+  });
+
+  it('should provide getMemoryState API in SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const memoryState = surface.getMemoryState();
+    // Initially null or empty
+    expect(memoryState).toBeDefined();
   });
 });

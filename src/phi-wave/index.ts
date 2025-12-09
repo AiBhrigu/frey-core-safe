@@ -17,6 +17,7 @@
  * - WaveSignatureEngine (Q7.3): Wave signature computation
  * - PhiPatternClassifier (Q7.3-P): Core interpretation layer
  * - PhiEmergentEngine (Q7.4-E): Emergent behavior detection
+ * - PhiAdaptiveMemory (Q7.5-A): Adaptive memory engine
  * 
  * ## Q7.4 Emergent Behavior Layer
  * 
@@ -45,12 +46,39 @@
  * adaptive (macro) behaviors, forming the foundation for Q7.5-A (Adaptive Memory)
  * and Q7.6-R (Resonance Engine).
  * 
+ * ## Q7.5 Adaptive Memory Layer
+ * 
+ * The Adaptive Memory Engine introduces a temporal memory layer with three levels:
+ * 
+ * - **L0 (Frame Memory)**: Short-term ring buffer of last 60 emergent states
+ * - **L1 (Pattern Memory)**: Mid-term storage of last 200 pattern classifications
+ * - **L2 (Context Memory)**: Event memory tracking last 20 systemic events
+ * 
+ * ### Memory Architecture
+ * 
+ * The three-layer stack provides:
+ * 
+ * 1. **Temporal continuity** - L0 tracks recent emergent state evolution
+ * 2. **Predictive capability** - L1 builds Markov transition matrix for next-state prediction
+ * 3. **Contextual awareness** - L2 correlates patterns with system events (preset switches, spikes, etc.)
+ * 
+ * ### Key Metrics
+ * 
+ * - **Memory Drift Index (MDI)**: Longitudinal drift of emergent states
+ * - **Predictive Gradient Index (PGI)**: Derived from frequency matrix and variance trend
+ * - **Stability Window**: Local stability vs long-term drift comparison
+ * - **Predicted Emergent State**: Markov-based next-state prediction
+ * 
+ * This memory layer powers future modules: predictive behavior, coherent state evolution,
+ * resonance modeling (Q7.6), and conversational memory for the Frey voice/semantic layer.
+ * 
  * @module phi-wave
  * @tag q7-integrated
  * @tag q7.1-preset-hotswitch
  * @tag q7.3-signature-engine
  * @tag q7.3-pattern-classifier
  * @tag q7.4-emergent
+ * @tag q7.5-adaptive-memory
  */
 
 // Types
@@ -112,6 +140,10 @@ export { PhiPatternClassifier, createPatternClassifier, Q7_PATTERN_VERSION } fro
 // Q7.4-E - Emergent Engine
 export type { EmergentState, EmergentClassification, EmergentListener } from './emergent-engine.js';
 export { PhiEmergentEngine, createEmergentEngine, Q7_EMERGENT_VERSION } from './emergent-engine.js';
+
+// Q7.5-A - Adaptive Memory
+export type { MemoryState, MemoryListener, MemoryEventType } from './adaptive-memory.js';
+export { PhiAdaptiveMemory, createAdaptiveMemory, Q7_MEMORY_VERSION } from './adaptive-memory.js';
 
 // Demo
 export { generateDemoHTML, getDemoConfig } from './phi-wave-demo.js';

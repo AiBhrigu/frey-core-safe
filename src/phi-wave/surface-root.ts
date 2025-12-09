@@ -9,6 +9,7 @@
  * @tag q7.3-signature-engine
  * @tag q7.3-pattern-classifier
  * @tag q7.4-emergent
+ * @tag q7.5-adaptive-memory
  */
 
 import type { SurfaceRootConfig, PhiWaveDemoConfig, RendererOptions } from './types.js';
@@ -24,6 +25,7 @@ import { PhiPresetHotSwitch, createPresetHotSwitch, type PresetId } from './pres
 import { WaveSignatureEngine, createSignatureEngine, type WaveSignature } from './signature-engine.js';
 import { PhiPatternClassifier, createPatternClassifier, type PatternClassification } from './pattern-classifier.js';
 import { PhiEmergentEngine, createEmergentEngine, type EmergentClassification } from './emergent-engine.js';
+import { PhiAdaptiveMemory, createAdaptiveMemory, type MemoryState } from './adaptive-memory.js';
 
 /**
  * Q7 Integration Version
@@ -75,6 +77,10 @@ export class SurfaceRoot {
   private emergentEngine: PhiEmergentEngine;
   private lastEmergent: EmergentClassification | null = null;
   
+  // Q7.5-A - Adaptive Memory
+  private adaptiveMemory: PhiAdaptiveMemory;
+  private lastMemoryState: MemoryState | null = null;
+  
   // Render loop state
   private running: boolean = false;
   private animationFrameId: number | null = null;
@@ -109,6 +115,9 @@ export class SurfaceRoot {
     
     // Q7.4-E - Initialize emergent engine
     this.emergentEngine = createEmergentEngine();
+    
+    // Q7.5-A - Initialize adaptive memory
+    this.adaptiveMemory = createAdaptiveMemory();
     
     // Pre-allocate composite buffer
     this.compositeBuffer = new Float32Array(this.kernel.getPointCount());
@@ -152,6 +161,9 @@ export class SurfaceRoot {
       if (event.success) {
         const config = this.presetHotSwitch.getCurrentConfig();
         this.applyPreset(config.id);
+        
+        // Feed preset switch event into adaptive memory (Q7.5-A)
+        this.adaptiveMemory.feedEvent('preset-switch', { preset: config.id });
       }
     });
     
@@ -162,6 +174,9 @@ export class SurfaceRoot {
       // Feed pattern into emergent engine (Q7.4-E)
       const emergent = this.emergentEngine.process(pattern);
       this.lastEmergent = emergent;
+      
+      // Feed pattern into adaptive memory (Q7.5-A)
+      this.adaptiveMemory.feedPattern(pattern);
       
       // Emit pattern:update via sync bus
       this.syncBus.emit({
@@ -176,6 +191,16 @@ export class SurfaceRoot {
         timestamp: emergent.timestamp,
         data: emergent,
       });
+      
+      // Feed emergent into adaptive memory L0
+      if (this.lastSignature) {
+        this.adaptiveMemory.feedEmergent(
+          emergent,
+          this.lastSignature.amplitude,
+          this.lastSignature.variance,
+          this.lastSignature.gradient
+        );
+      }
     });
   }
   
@@ -276,6 +301,17 @@ export class SurfaceRoot {
     if (this.lastSignature) {
       this.lastPattern = this.patternClassifier.classify(this.lastSignature);
     }
+    
+    // Q7.5-A - Update adaptive memory (non-blocking)
+    this.adaptiveMemory.update();
+    this.lastMemoryState = this.adaptiveMemory.getMemoryState();
+    
+    // Emit memory:update via sync bus
+    this.syncBus.emit({
+      type: 'memory:update',
+      timestamp: now,
+      data: this.lastMemoryState,
+    });
     
     // Render
     this.renderer.render(frameData, this.resolution);
@@ -531,6 +567,20 @@ export class SurfaceRoot {
    */
   getEmergentState(): EmergentClassification | null {
     return this.lastEmergent ? { ...this.lastEmergent } : null;
+  }
+  
+  /**
+   * Q7.5-A - Get adaptive memory engine
+   */
+  getAdaptiveMemory(): PhiAdaptiveMemory {
+    return this.adaptiveMemory;
+  }
+  
+  /**
+   * Q7.5-A - Get current memory state
+   */
+  getMemoryState(): MemoryState | null {
+    return this.lastMemoryState ? { ...this.lastMemoryState } : null;
   }
   
   /**

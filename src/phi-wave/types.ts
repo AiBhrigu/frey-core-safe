@@ -114,7 +114,7 @@ export interface WaveFrameData {
  */
 export interface SyncEvent {
   /** Event type */
-  type: 'tick' | 'phase-reset' | 'frequency-change' | 'layer-update' | 'q7-wave' | 'pattern:update' | 'emergent:update';
+  type: 'tick' | 'phase-reset' | 'frequency-change' | 'layer-update' | 'q7-wave' | 'pattern:update' | 'emergent:update' | 'memory:update';
   /** Event timestamp */
   timestamp: number;
   /** Event data */
