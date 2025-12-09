@@ -163,6 +163,35 @@
  * This enables the system to automatically adapt its interpretation strategy based
  * on current conditions, maintaining stability while maximizing expressiveness.
  * 
+ * ### Q8.2 Phase Modulator
+ * 
+ * The Phase Modulator acts as a phase-shift governor that stabilizes and regulates
+ * phase relationships across the Q7 stack, preventing runaway oscillations and harsh
+ * transitions during modulation-induced turbulence.
+ * 
+ * #### Key Features
+ * 
+ * 1. **Phase Drift Detection**: Computes φ-phase offset between signature phase,
+ *    resonance harmonic phase, and coherence PCM phase anchor (output: drift ∈ [0..π])
+ * 2. **φ-Phase Correction Curve**: Applies gentle corrections based on drift magnitude:
+ *    - Small drift (<0.2π) → φ⁻¹ soft correction (0.618)
+ *    - Mid drift (<0.5π) → φ-balanced correction (interpolated)
+ *    - High drift (≥0.5π) → φ² stabilization clamp (2.618)
+ * 3. **Phase Stability Index (PSI)**: Scalar 0-1 value computed from drift, modulation
+ *    index, and coherence state
+ * 4. **Phase Governor**: Modifies resonance + coherence inputs by phase weights to
+ *    prevent runaway oscillations when modulation is "sensitive" or "overloaded"
+ * 
+ * #### Phase Stability States
+ * 
+ * - **stable**: PSI ≥ 0.8 (excellent phase alignment)
+ * - **semi-stable**: PSI ≥ 0.6 (good alignment, minor corrections)
+ * - **unstable**: PSI ≥ 0.4 (significant drift, active correction)
+ * - **critical**: PSI < 0.4 (severe misalignment, maximum stabilization)
+ * 
+ * The Phase Modulator protects emergent and pattern layers from harsh transitions,
+ * ensuring smooth phase evolution even during turbulent modulation states.
+ * 
  * @module phi-wave
  * @tag q7-integrated
  * @tag q7.1-preset-hotswitch
@@ -173,6 +202,7 @@
  * @tag q7.6-resonance
  * @tag q7.7-coherence-stabilizer
  * @tag q8.1-mod-core
+ * @tag q8.2-phase-modulator
  */
 
 // Types
@@ -250,6 +280,10 @@ export { PhiCoherenceStabilizer, createCoherenceStabilizer, Q7_COHERENCE_VERSION
 // Q8.1 - Modulation Core
 export type { LayerWeights, ModulationState, ModulationData, ModulationListener, Q7CombinedState } from './q8/modulation-core.js';
 export { PhiModulationCore, createModulationCore, Q8_MOD_CORE_VERSION } from './q8/modulation-core.js';
+
+// Q8.2 - Phase Modulator
+export type { PhaseStability, PhaseModulatorState, PhaseListener } from './q8/phase-modulator.js';
+export { PhiPhaseModulator, createPhaseModulator, Q8_PHASE_VERSION } from './q8/phase-modulator.js';
 
 // Demo
 export { generateDemoHTML, getDemoConfig } from './phi-wave-demo.js';

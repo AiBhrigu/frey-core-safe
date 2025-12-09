@@ -65,6 +65,14 @@ import {
   type LayerWeights,
   type ModulationState,
   type Q7CombinedState,
+  // Q8.2 - Phase Modulator
+  PhiPhaseModulator,
+  createPhaseModulator,
+  Q8_PHASE_VERSION,
+  type PhaseModulatorState,
+  type PhaseStability,
+  type PhaseListener,
+  type ResonanceSpectrum,
 } from './phi-wave/index.js';
 
 describe('Phi Constants', () => {
@@ -3402,5 +3410,368 @@ describe('Q8.1 - Modulation Core', () => {
     
     expect(index).toBeGreaterThanOrEqual(0);
     expect(index).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('Q8.2 - Phase Modulator', () => {
+  let phaseModulator: PhiPhaseModulator;
+  
+  beforeEach(() => {
+    phaseModulator = createPhaseModulator();
+  });
+  
+  it('should create phase modulator', () => {
+    expect(phaseModulator).toBeDefined();
+    expect(phaseModulator.getPSI()).toBe(1.0);
+  });
+  
+  it('should compute phase drift from signature and resonance', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.2,
+      lambda: 1.8,
+      variance: 0.1,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array([1.0, 0.5, 0.3, 0.2, 0.1, 0.05, 0.02]),
+      gradientHarmonics: new Float32Array([0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01]),
+      lambdaHarmonics: new Float32Array([0.8, 0.6, 0.4, 0.3, 0.2, 0.1, 0.05]),
+    };
+    
+    phaseModulator.update(signature, resonanceSpectrum, 0.8, 0.3);
+    
+    const state = phaseModulator.getPhaseState();
+    expect(state.drift).toBeGreaterThanOrEqual(0);
+    expect(state.drift).toBeLessThanOrEqual(Math.PI);
+  });
+  
+  it('should apply soft correction for small drift', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.01, // Very small gradient
+      lambda: 1.8,
+      variance: 0.05,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array([1.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0]),
+      gradientHarmonics: new Float32Array([0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+      lambdaHarmonics: new Float32Array([0.8, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+    };
+    
+    phaseModulator.update(signature, resonanceSpectrum, 0.8, 0.1);
+    
+    const state = phaseModulator.getPhaseState();
+    // Small drift should result in correction factor close to or below φ
+    expect(state.correctionFactor).toBeLessThanOrEqual(PHI);
+  });
+  
+  it('should apply stabilization clamp for high drift', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 1.0, // High gradient
+      lambda: 1.8,
+      variance: 0.8, // High variance
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array([1.0, -0.8, 0.6, -0.4, 0.3, -0.2, 0.1]),
+      gradientHarmonics: new Float32Array([-0.5, 0.7, -0.4, 0.3, -0.2, 0.1, -0.05]),
+      lambdaHarmonics: new Float32Array([0.2, 0.9, -0.7, 0.5, -0.3, 0.2, -0.1]),
+    };
+    
+    phaseModulator.update(signature, resonanceSpectrum, 0.2, 0.8);
+    
+    const state = phaseModulator.getPhaseState();
+    // High drift conditions should result in higher correction factor
+    expect(state.correctionFactor).toBeGreaterThan(1.0);
+  });
+  
+  it('should compute PSI correctly', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.1,
+      lambda: 1.8,
+      variance: 0.1,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array(7),
+      gradientHarmonics: new Float32Array(7),
+      lambdaHarmonics: new Float32Array(7),
+    };
+    
+    // Good coherence, low modulation
+    phaseModulator.update(signature, resonanceSpectrum, 0.9, 0.2);
+    
+    const state = phaseModulator.getPhaseState();
+    expect(state.psi).toBeGreaterThanOrEqual(0);
+    expect(state.psi).toBeLessThanOrEqual(1);
+    expect(state.psi).toBeGreaterThan(0.7); // Should be high with good conditions
+  });
+  
+  it('should classify stability correctly', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.1,
+      lambda: 1.8,
+      variance: 0.1,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array(7),
+      gradientHarmonics: new Float32Array(7),
+      lambdaHarmonics: new Float32Array(7),
+    };
+    
+    // Stable conditions
+    phaseModulator.update(signature, resonanceSpectrum, 0.95, 0.1);
+    let state = phaseModulator.getPhaseState();
+    expect(state.stability).toBe('stable');
+    
+    // Less stable conditions
+    phaseModulator.update(signature, resonanceSpectrum, 0.3, 0.9);
+    state = phaseModulator.getPhaseState();
+    // Should be less stable, but may not be critical depending on other factors
+    expect(['semi-stable', 'unstable', 'critical']).toContain(state.stability);
+  });
+  
+  it('should handle null signature gracefully', () => {
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array(7),
+      gradientHarmonics: new Float32Array(7),
+      lambdaHarmonics: new Float32Array(7),
+    };
+    
+    phaseModulator.update(null, resonanceSpectrum, 0.8, 0.3);
+    
+    const state = phaseModulator.getPhaseState();
+    expect(state.drift).toBe(0);
+    expect(state.psi).toBeGreaterThan(0.5);
+  });
+  
+  it('should support subscription pattern', () => {
+    let receivedState: PhaseModulatorState | null = null;
+    
+    const listener: PhaseListener = (state) => {
+      receivedState = state;
+    };
+    
+    phaseModulator.subscribe(listener);
+    
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.1,
+      lambda: 1.8,
+      variance: 0.1,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array(7),
+      gradientHarmonics: new Float32Array(7),
+      lambdaHarmonics: new Float32Array(7),
+    };
+    
+    phaseModulator.update(signature, resonanceSpectrum, 0.8, 0.3);
+    
+    expect(receivedState).not.toBeNull();
+    expect(receivedState!.psi).toBeDefined();
+  });
+  
+  it('should support unsubscribe', () => {
+    let callCount = 0;
+    
+    const listener: PhaseListener = () => {
+      callCount++;
+    };
+    
+    phaseModulator.subscribe(listener);
+    phaseModulator.unsubscribe(listener);
+    
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.1,
+      lambda: 1.8,
+      variance: 0.1,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array(7),
+      gradientHarmonics: new Float32Array(7),
+      lambdaHarmonics: new Float32Array(7),
+    };
+    
+    phaseModulator.update(signature, resonanceSpectrum, 0.8, 0.3);
+    
+    expect(callCount).toBe(0);
+  });
+  
+  it('should reset state correctly', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 1.0,
+      lambda: 1.8,
+      variance: 0.8,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array([1.0, -0.8, 0.6, -0.4, 0.3, -0.2, 0.1]),
+      gradientHarmonics: new Float32Array(7),
+      lambdaHarmonics: new Float32Array(7),
+    };
+    
+    phaseModulator.update(signature, resonanceSpectrum, 0.2, 0.9);
+    phaseModulator.reset();
+    
+    const state = phaseModulator.getPhaseState();
+    expect(state.drift).toBe(0);
+    expect(state.psi).toBe(1.0);
+    expect(state.stability).toBe('stable');
+    expect(state.correctionFactor).toBe(1.0);
+  });
+  
+  it('should detect phase flips correctly', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: -0.5,
+      lambda: 1.8,
+      variance: 0.1,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array([1.0, 0.5, 0.3, 0.2, 0.1, 0.05, 0.02]),
+      gradientHarmonics: new Float32Array([0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01]),
+      lambdaHarmonics: new Float32Array([0.8, 0.6, 0.4, 0.3, 0.2, 0.1, 0.05]),
+    };
+    
+    phaseModulator.update(signature, resonanceSpectrum, 0.1, 0.9);
+    
+    const state = phaseModulator.getPhaseState();
+    // Drift should be clamped to π
+    expect(state.drift).toBeLessThanOrEqual(Math.PI);
+  });
+  
+  it('should integrate with SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const modulator = surface.getPhaseModulator();
+    
+    expect(modulator).toBeDefined();
+  });
+  
+  it('should provide getPhaseState API in SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const state = surface.getPhaseState();
+    
+    // Initial state should be null
+    expect(state).toBeNull();
+  });
+  
+  it('should provide getPSI API in SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const psi = surface.getPSI();
+    
+    // Initial PSI should be null
+    expect(psi).toBeNull();
+  });
+  
+  it('should emit phase:update events', () => {
+    let receivedEvent: PhaseModulatorState | null = null;
+    
+    const listener: PhaseListener = (state) => {
+      receivedEvent = state;
+    };
+    
+    phaseModulator.subscribe(listener);
+    
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.2,
+      lambda: 1.8,
+      variance: 0.15,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array([1.0, 0.5, 0.3, 0.2, 0.1, 0.05, 0.02]),
+      gradientHarmonics: new Float32Array([0.5, 0.3, 0.2, 0.1, 0.05, 0.02, 0.01]),
+      lambdaHarmonics: new Float32Array([0.8, 0.6, 0.4, 0.3, 0.2, 0.1, 0.05]),
+    };
+    
+    phaseModulator.update(signature, resonanceSpectrum, 0.7, 0.4);
+    
+    expect(receivedEvent).not.toBeNull();
+    expect(receivedEvent!.timestamp).toBeDefined();
+  });
+  
+  it('should protect against runaway oscillations', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.9,
+      gradient: 0.8,
+      lambda: 1.8,
+      variance: 0.9,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array([1.0, -0.9, 0.8, -0.7, 0.6, -0.5, 0.4]),
+      gradientHarmonics: new Float32Array([-0.9, 0.8, -0.7, 0.6, -0.5, 0.4, -0.3]),
+      lambdaHarmonics: new Float32Array([0.9, -0.8, 0.7, -0.6, 0.5, -0.4, 0.3]),
+    };
+    
+    // Overloaded modulation state
+    phaseModulator.update(signature, resonanceSpectrum, 0.1, 0.95);
+    
+    const state = phaseModulator.getPhaseState();
+    // Should detect instability with high modulation
+    expect(state.psi).toBeLessThan(0.8);
+    expect(['semi-stable', 'unstable', 'critical']).toContain(state.stability);
+  });
+  
+  it('should handle Q8.1 integration via modulation index', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.1,
+      lambda: 1.8,
+      variance: 0.1,
+      timestamp: 1000,
+      frameIndex: 10,
+    };
+    
+    const resonanceSpectrum: ResonanceSpectrum = {
+      amplitudeHarmonics: new Float32Array(7),
+      gradientHarmonics: new Float32Array(7),
+      lambdaHarmonics: new Float32Array(7),
+    };
+    
+    // Low modulation index should result in higher PSI
+    phaseModulator.update(signature, resonanceSpectrum, 0.9, 0.1);
+    const state1 = phaseModulator.getPhaseState();
+    
+    // High modulation index should result in lower PSI
+    phaseModulator.update(signature, resonanceSpectrum, 0.9, 0.9);
+    const state2 = phaseModulator.getPhaseState();
+    
+    expect(state1.psi).toBeGreaterThan(state2.psi);
   });
 });

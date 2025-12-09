@@ -30,6 +30,7 @@ import { PhiAdaptiveMemory, createAdaptiveMemory, type MemoryState } from './ada
 import { PhiResonanceEngine, createResonanceEngine, type ResonanceClassification } from './resonance-engine.js';
 import { PhiCoherenceStabilizer, createCoherenceStabilizer, type CoherenceState } from './coherence-stabilizer.js';
 import { PhiModulationCore, createModulationCore, type ModulationData, type LayerWeights, type Q7CombinedState } from './q8/modulation-core.js';
+import { PhiPhaseModulator, createPhaseModulator, type PhaseModulatorState } from './q8/phase-modulator.js';
 
 /**
  * Q7 Integration Version
@@ -97,6 +98,10 @@ export class SurfaceRoot {
   private modulationCore: PhiModulationCore;
   private lastModulation: ModulationData | null = null;
   
+  // Q8.2 - Phase Modulator
+  private phaseModulator: PhiPhaseModulator;
+  private lastPhaseState: PhaseModulatorState | null = null;
+  
   // Render loop state
   private running: boolean = false;
   private animationFrameId: number | null = null;
@@ -143,6 +148,9 @@ export class SurfaceRoot {
     
     // Q8.1 - Initialize modulation core
     this.modulationCore = createModulationCore();
+    
+    // Q8.2 - Initialize phase modulator
+    this.phaseModulator = createPhaseModulator();
     
     // Pre-allocate composite buffer
     this.compositeBuffer = new Float32Array(this.kernel.getPointCount());
@@ -395,6 +403,24 @@ export class SurfaceRoot {
       timestamp: now,
       data: this.lastModulation,
     });
+    
+    // Q8.2 - Compute phase modulation (non-blocking)
+    if (this.lastResonance && this.lastCoherence && this.lastModulation) {
+      this.phaseModulator.update(
+        this.lastSignature,
+        this.lastResonance.spectrum,
+        this.lastCoherence.pcm.value,
+        this.lastModulation.modulationIndex
+      );
+      this.lastPhaseState = this.phaseModulator.getPhaseState();
+      
+      // Emit phase:update via sync bus
+      this.syncBus.emit({
+        type: 'phase:update',
+        timestamp: now,
+        data: this.lastPhaseState,
+      });
+    }
     
     // Render
     this.renderer.render(frameData, this.resolution);
@@ -727,6 +753,27 @@ export class SurfaceRoot {
    */
   getModulationIndex(): number {
     return this.modulationCore.getModulationIndex();
+  }
+  
+  /**
+   * Q8.2 - Get phase modulator
+   */
+  getPhaseModulator(): PhiPhaseModulator {
+    return this.phaseModulator;
+  }
+  
+  /**
+   * Q8.2 - Get current phase state
+   */
+  getPhaseState(): PhaseModulatorState | null {
+    return this.lastPhaseState ? { ...this.lastPhaseState } : null;
+  }
+  
+  /**
+   * Q8.2 - Get Phase Stability Index (PSI)
+   */
+  getPSI(): number | null {
+    return this.lastPhaseState ? this.lastPhaseState.psi : null;
   }
   
   /**
