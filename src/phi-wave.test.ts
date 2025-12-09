@@ -57,6 +57,14 @@ import {
   Q7_COHERENCE_VERSION,
   type CoherenceState,
   type PhaseCoherenceMetric,
+  // Q8.1 - Modulation Core
+  PhiModulationCore,
+  createModulationCore,
+  Q8_MOD_CORE_VERSION,
+  type ModulationData,
+  type LayerWeights,
+  type ModulationState,
+  type Q7CombinedState,
 } from './phi-wave/index.js';
 
 describe('Phi Constants', () => {
@@ -2967,5 +2975,432 @@ describe('Q7.7 - PhiCoherenceStabilizer', () => {
     
     // Initially null
     expect(pcm).toBeNull();
+  });
+});
+
+describe('Q8.1 - Modulation Core', () => {
+  let modulationCore: PhiModulationCore;
+  
+  beforeEach(() => {
+    modulationCore = createModulationCore();
+  });
+  
+  it('should have correct version', () => {
+    expect(Q8_MOD_CORE_VERSION).toBe('8.1.0');
+  });
+  
+  it('should initialize with default weights', () => {
+    const weights = modulationCore.getWeights();
+    
+    expect(weights.pattern).toBeCloseTo(1.0, 5);
+    expect(weights.emergent).toBeCloseTo(1.0, 5);
+    expect(weights.memory).toBeCloseTo(1.0, 5);
+    expect(weights.resonance).toBeCloseTo(1.0, 5);
+    expect(weights.coherence).toBeCloseTo(1.0, 5);
+  });
+  
+  it('should initialize with balanced state', () => {
+    expect(modulationCore.getState()).toBe('balanced');
+    expect(modulationCore.getModulationIndex()).toBeCloseTo(0.5, 5);
+  });
+  
+  it('should compute modulation index from Q7 state', () => {
+    const pattern: PatternClassification = {
+      state: 'stable',
+      metrics: {
+        amplitudeDelta: 0.01,
+        gradientSign: 0,
+        lambdaStability: 1.0,
+        varianceBurst: false,
+        trendReversals: 0,
+      },
+      confidence: 0.9,
+      timestamp: 1000,
+    };
+    
+    const emergent: EmergentClassification = {
+      state: 'coherent',
+      metrics: {
+        phiConsistency: 0.9,
+        patternFrequencies: {
+          stable: 0.8,
+          ascending: 0.1,
+          descending: 0.05,
+          volatile: 0.03,
+          chaotic: 0.02,
+        },
+        reversalCycles: 0,
+        amplitudeDrift: 0.01,
+        varianceRegime: 0.05,
+      },
+      confidence: 0.95,
+      timestamp: 1000,
+    };
+    
+    const state: Q7CombinedState = {
+      pattern,
+      emergent,
+      memory: null,
+      resonance: null,
+      coherence: null,
+    };
+    
+    const data = modulationCore.process(state);
+    
+    expect(data.modulationIndex).toBeGreaterThanOrEqual(0);
+    expect(data.modulationIndex).toBeLessThanOrEqual(1);
+  });
+  
+  it('should classify calm state with low stress', () => {
+    const pattern: PatternClassification = {
+      state: 'stable',
+      metrics: {
+        amplitudeDelta: 0.01,
+        gradientSign: 0,
+        lambdaStability: 1.0,
+        varianceBurst: false,
+        trendReversals: 0,
+      },
+      confidence: 0.9,
+      timestamp: 1000,
+    };
+    
+    const coherence: CoherenceState = {
+      coherence: 'high',
+      driftDampeningActive: false,
+      burstSofteningActive: false,
+      stabilityEnvelope: 1.0,
+      dampeningFactor: 1.0,
+      pcm: {
+        value: 0.9,
+        patternEmergentAlign: 0.9,
+        emergentResonanceAlign: 0.9,
+        systemCoherence: 0.9,
+        timestamp: 1000,
+      },
+      timestamp: 1000,
+    };
+    
+    const state: Q7CombinedState = {
+      pattern,
+      emergent: null,
+      memory: null,
+      resonance: null,
+      coherence,
+    };
+    
+    const data = modulationCore.process(state);
+    
+    expect(data.state).toBe('calm');
+  });
+  
+  it('should classify overloaded state with high stress', () => {
+    const pattern: PatternClassification = {
+      state: 'chaotic',
+      metrics: {
+        amplitudeDelta: 0.5,
+        gradientSign: 1,
+        lambdaStability: 0.2,
+        varianceBurst: true,
+        trendReversals: 5,
+      },
+      confidence: 0.3,
+      timestamp: 1000,
+    };
+    
+    const emergent: EmergentClassification = {
+      state: 'turbulent',
+      metrics: {
+        phiConsistency: 0.1,
+        patternFrequencies: {
+          stable: 0.1,
+          ascending: 0.1,
+          descending: 0.1,
+          volatile: 0.5,
+          chaotic: 0.2,
+        },
+        reversalCycles: 10,
+        amplitudeDrift: 0.3,
+        varianceRegime: 0.8,
+      },
+      confidence: 0.4,
+      timestamp: 1000,
+    };
+    
+    const memory: MemoryState = {
+      l0: new Float32Array(60),
+      l1: new Float32Array(200),
+      l2: [],
+      metrics: {
+        memoryDriftIndex: 0.5,  // High drift
+        predictiveGradientIndex: 0.3,
+        stabilityWindow: 0.2,
+      },
+      predictedEmergentState: 'turbulent',
+      timestamp: 1000,
+    };
+    
+    const resonance: ResonanceClassification = {
+      state: 'resonance-burst',
+      spectrum: {
+        amplitudeHarmonics: new Float32Array(7),
+        gradientHarmonics: new Float32Array(7),
+        lambdaHarmonics: new Float32Array(7),
+      },
+      metrics: {
+        rsi: 0.2,
+        hdm: 0.8,
+        spectralStability: 0.1,
+      },
+      confidence: 0.3,
+      timestamp: 1000,
+    };
+    
+    const coherence: CoherenceState = {
+      coherence: 'unstable',
+      driftDampeningActive: true,
+      burstSofteningActive: true,
+      stabilityEnvelope: 0.3,
+      dampeningFactor: PHI_INV,
+      pcm: {
+        value: 0.1,  // Very low coherence
+        patternEmergentAlign: 0.2,
+        emergentResonanceAlign: 0.1,
+        systemCoherence: 0.1,
+        timestamp: 1000,
+      },
+      timestamp: 1000,
+    };
+    
+    const state: Q7CombinedState = {
+      pattern,
+      emergent,
+      memory,
+      resonance,
+      coherence,
+    };
+    
+    const data = modulationCore.process(state);
+    
+    // With all extreme stress factors, should be sensitive or overloaded
+    expect(data.state).toMatch(/sensitive|overloaded/);
+    expect(data.modulationIndex).toBeGreaterThan(0.7); // High stress
+  });
+  
+  it('should apply φ-soften for low coherence', () => {
+    const coherence: CoherenceState = {
+      coherence: 'low',
+      driftDampeningActive: false,
+      burstSofteningActive: false,
+      stabilityEnvelope: 1.0,
+      dampeningFactor: 1.0,
+      pcm: {
+        value: 0.4,
+        patternEmergentAlign: 0.4,
+        emergentResonanceAlign: 0.4,
+        systemCoherence: 0.4,
+        timestamp: 1000,
+      },
+      timestamp: 1000,
+    };
+    
+    const state: Q7CombinedState = {
+      pattern: null,
+      emergent: null,
+      memory: null,
+      resonance: null,
+      coherence,
+    };
+    
+    const data = modulationCore.process(state);
+    
+    expect(data.phiAttenuation).toBeLessThan(1.0);
+  });
+  
+  it('should apply φ-boost for stable resonance', () => {
+    const resonance: ResonanceClassification = {
+      state: 'harmonic-stable',
+      spectrum: {
+        amplitudeHarmonics: new Float32Array(7),
+        gradientHarmonics: new Float32Array(7),
+        lambdaHarmonics: new Float32Array(7),
+      },
+      metrics: {
+        rsi: 0.9,
+        hdm: 0.05,
+        spectralStability: 0.95,
+      },
+      confidence: 0.95,
+      timestamp: 1000,
+    };
+    
+    const state: Q7CombinedState = {
+      pattern: null,
+      emergent: null,
+      memory: null,
+      resonance,
+      coherence: null,
+    };
+    
+    const data = modulationCore.process(state);
+    
+    expect(data.phiAttenuation).toBeGreaterThan(1.0);
+  });
+  
+  it('should boost stable pattern weight', () => {
+    const pattern: PatternClassification = {
+      state: 'stable',
+      metrics: {
+        amplitudeDelta: 0.01,
+        gradientSign: 0,
+        lambdaStability: 1.0,
+        varianceBurst: false,
+        trendReversals: 0,
+      },
+      confidence: 0.9,
+      timestamp: 1000,
+    };
+    
+    const state: Q7CombinedState = {
+      pattern,
+      emergent: null,
+      memory: null,
+      resonance: null,
+      coherence: null,
+    };
+    
+    modulationCore.process(state);
+    const weights = modulationCore.getWeights();
+    
+    expect(weights.pattern).toBeGreaterThan(1.0);
+  });
+  
+  it('should reduce chaotic pattern weight', () => {
+    const pattern: PatternClassification = {
+      state: 'chaotic',
+      metrics: {
+        amplitudeDelta: 0.5,
+        gradientSign: 1,
+        lambdaStability: 0.2,
+        varianceBurst: true,
+        trendReversals: 5,
+      },
+      confidence: 0.3,
+      timestamp: 1000,
+    };
+    
+    const state: Q7CombinedState = {
+      pattern,
+      emergent: null,
+      memory: null,
+      resonance: null,
+      coherence: null,
+    };
+    
+    modulationCore.process(state);
+    const weights = modulationCore.getWeights();
+    
+    expect(weights.pattern).toBeLessThan(1.0);
+  });
+  
+  it('should normalize weights to maintain system energy', () => {
+    const pattern: PatternClassification = {
+      state: 'stable',
+      metrics: {
+        amplitudeDelta: 0.01,
+        gradientSign: 0,
+        lambdaStability: 1.0,
+        varianceBurst: false,
+        trendReversals: 0,
+      },
+      confidence: 0.9,
+      timestamp: 1000,
+    };
+    
+    const state: Q7CombinedState = {
+      pattern,
+      emergent: null,
+      memory: null,
+      resonance: null,
+      coherence: null,
+    };
+    
+    modulationCore.process(state);
+    const weights = modulationCore.getWeights();
+    
+    // Sum should be close to 5 (5 layers with average 1.0)
+    const sum = weights.pattern + weights.emergent + weights.memory + weights.resonance + weights.coherence;
+    expect(sum).toBeCloseTo(5.0, 5);
+  });
+  
+  it('should emit modulation events', () => {
+    let receivedData: ModulationData | null = null;
+    
+    modulationCore.subscribe((data) => {
+      receivedData = data;
+    });
+    
+    const state: Q7CombinedState = {
+      pattern: null,
+      emergent: null,
+      memory: null,
+      resonance: null,
+      coherence: null,
+    };
+    
+    const data = modulationCore.process(state);
+    
+    expect(receivedData).not.toBeNull();
+    expect(receivedData!.timestamp).toBe(data.timestamp);
+  });
+  
+  it('should support unsubscribe from listeners', () => {
+    let callCount = 0;
+    
+    const unsubscribe = modulationCore.subscribe(() => {
+      callCount++;
+    });
+    
+    const state: Q7CombinedState = {
+      pattern: null,
+      emergent: null,
+      memory: null,
+      resonance: null,
+      coherence: null,
+    };
+    
+    modulationCore.process(state);
+    expect(callCount).toBe(1);
+    
+    unsubscribe();
+    modulationCore.process(state);
+    expect(callCount).toBe(1); // Should not increment
+  });
+  
+  it('should integrate with SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const core = surface.getModulationCore();
+    
+    expect(core).toBeDefined();
+  });
+  
+  it('should provide getModulationWeights API in SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const weights = surface.getModulationWeights();
+    
+    expect(weights).toBeDefined();
+    expect(weights.pattern).toBeDefined();
+    expect(weights.emergent).toBeDefined();
+    expect(weights.memory).toBeDefined();
+    expect(weights.resonance).toBeDefined();
+    expect(weights.coherence).toBeDefined();
+  });
+  
+  it('should provide getModulationIndex API in SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const index = surface.getModulationIndex();
+    
+    expect(index).toBeGreaterThanOrEqual(0);
+    expect(index).toBeLessThanOrEqual(1);
   });
 });

@@ -135,6 +135,34 @@
  * interpretation layers, preventing cascade failures and maintaining system coherence
  * during rapid state transitions.
  * 
+ * ## Q8 Modulation Layer
+ * 
+ * The Q8 layer introduces dynamic weight modulation for the Q7 interpretation stack,
+ * adapting system behavior based on stability metrics and φ-attenuation curves.
+ * 
+ * ### Q8.1 Modulation Core
+ * 
+ * The Modulation Core provides dynamic weight adjustment for Q7 layers:
+ * 
+ * #### Key Features
+ * 
+ * 1. **Dynamic Weight Modulation**: Adjusts pattern/emergent/memory/resonance/coherence
+ *    layer weights based on system state
+ * 2. **φ-Attenuation Curve**: Uses golden ratio scaling (0.618 soften, 1.618 boost)
+ * 3. **Stability-Driven**: Reacts to coherence levels, memory drift, and resonance bursts
+ * 4. **Modulation Index**: Provides 0-1 metric indicating system load/stress
+ * 5. **4-State Classification**: calm, balanced, sensitive, overloaded
+ * 
+ * #### Modulation Philosophy
+ * 
+ * The modulation layer acts as a meta-controller, adjusting how much influence each
+ * Q7 layer has on the overall system behavior. When coherence is high and resonance
+ * is stable, layers receive φ-boost (1.618). When instability is detected, layers
+ * receive φ-soften (0.618) to prevent cascade failures.
+ * 
+ * This enables the system to automatically adapt its interpretation strategy based
+ * on current conditions, maintaining stability while maximizing expressiveness.
+ * 
  * @module phi-wave
  * @tag q7-integrated
  * @tag q7.1-preset-hotswitch
@@ -144,6 +172,7 @@
  * @tag q7.5-adaptive-memory
  * @tag q7.6-resonance
  * @tag q7.7-coherence-stabilizer
+ * @tag q8.1-mod-core
  */
 
 // Types
@@ -217,6 +246,10 @@ export { PhiResonanceEngine, createResonanceEngine, Q7_RESONANCE_VERSION } from 
 // Q7.7 - Coherence Stabilizer
 export type { CoherenceState, PhaseCoherenceMetric, CoherenceListener } from './coherence-stabilizer.js';
 export { PhiCoherenceStabilizer, createCoherenceStabilizer, Q7_COHERENCE_VERSION } from './coherence-stabilizer.js';
+
+// Q8.1 - Modulation Core
+export type { LayerWeights, ModulationState, ModulationData, ModulationListener, Q7CombinedState } from './q8/modulation-core.js';
+export { PhiModulationCore, createModulationCore, Q8_MOD_CORE_VERSION } from './q8/modulation-core.js';
 
 // Demo
 export { generateDemoHTML, getDemoConfig } from './phi-wave-demo.js';

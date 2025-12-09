@@ -29,6 +29,7 @@ import { PhiEmergentEngine, createEmergentEngine, type EmergentClassification } 
 import { PhiAdaptiveMemory, createAdaptiveMemory, type MemoryState } from './adaptive-memory.js';
 import { PhiResonanceEngine, createResonanceEngine, type ResonanceClassification } from './resonance-engine.js';
 import { PhiCoherenceStabilizer, createCoherenceStabilizer, type CoherenceState } from './coherence-stabilizer.js';
+import { PhiModulationCore, createModulationCore, type ModulationData, type LayerWeights, type Q7CombinedState } from './q8/modulation-core.js';
 
 /**
  * Q7 Integration Version
@@ -92,6 +93,10 @@ export class SurfaceRoot {
   private coherenceStabilizer: PhiCoherenceStabilizer;
   private lastCoherence: CoherenceState | null = null;
   
+  // Q8.1 - Modulation Core
+  private modulationCore: PhiModulationCore;
+  private lastModulation: ModulationData | null = null;
+  
   // Render loop state
   private running: boolean = false;
   private animationFrameId: number | null = null;
@@ -135,6 +140,9 @@ export class SurfaceRoot {
     
     // Q7.7 - Initialize coherence stabilizer
     this.coherenceStabilizer = createCoherenceStabilizer();
+    
+    // Q8.1 - Initialize modulation core
+    this.modulationCore = createModulationCore();
     
     // Pre-allocate composite buffer
     this.compositeBuffer = new Float32Array(this.kernel.getPointCount());
@@ -369,6 +377,23 @@ export class SurfaceRoot {
       type: 'coherence:update',
       timestamp: now,
       data: this.lastCoherence,
+    });
+    
+    // Q8.1 - Compute modulation (non-blocking)
+    const q7State: Q7CombinedState = {
+      pattern: this.lastPattern,
+      emergent: this.lastEmergent,
+      memory: this.lastMemoryState,
+      resonance: this.lastResonance,
+      coherence: this.lastCoherence,
+    };
+    this.lastModulation = this.modulationCore.process(q7State);
+    
+    // Emit modulation:update via sync bus
+    this.syncBus.emit({
+      type: 'modulation:update',
+      timestamp: now,
+      data: this.lastModulation,
     });
     
     // Render
@@ -681,6 +706,27 @@ export class SurfaceRoot {
    */
   getPCM(): CoherenceState['pcm'] | null {
     return this.lastCoherence ? this.lastCoherence.pcm : null;
+  }
+  
+  /**
+   * Q8.1 - Get modulation core
+   */
+  getModulationCore(): PhiModulationCore {
+    return this.modulationCore;
+  }
+  
+  /**
+   * Q8.1 - Get current modulation weights
+   */
+  getModulationWeights(): LayerWeights {
+    return this.modulationCore.getWeights();
+  }
+  
+  /**
+   * Q8.1 - Get modulation index
+   */
+  getModulationIndex(): number {
+    return this.modulationCore.getModulationIndex();
   }
   
   /**
