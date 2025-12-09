@@ -35,7 +35,7 @@ export class PhiSyncBus {
     this.tickInterval = 1000 / ticksPerSecond;
     
     // Initialize listener maps
-    const eventTypes: SyncEvent['type'][] = ['tick', 'phase-reset', 'frequency-change', 'layer-update', 'q7-wave'];
+    const eventTypes: SyncEvent['type'][] = ['tick', 'phase-reset', 'frequency-change', 'layer-update', 'q7-wave', 'pattern:update', 'emergent:update'];
     for (const type of eventTypes) {
       this.listeners.set(type, []);
     }

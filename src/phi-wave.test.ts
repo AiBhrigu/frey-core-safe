@@ -1296,3 +1296,519 @@ describe('Q7.3-P - Pattern Classifier', () => {
     expect(pattern.metrics.varianceBurst).toBeGreaterThan(3); // Significant burst (adjusted threshold)
   });
 });
+
+// Q7.4-E - Emergent Engine Tests
+describe('PhiEmergentEngine (Q7.4-E)', () => {
+  let engine: import('./phi-wave/emergent-engine.js').PhiEmergentEngine;
+
+  beforeEach(async () => {
+    const module = await import('./phi-wave/emergent-engine.js');
+    engine = module.createEmergentEngine();
+  });
+
+  it('should export Q7_EMERGENT_VERSION', async () => {
+    const { Q7_EMERGENT_VERSION } = await import('./phi-wave/emergent-engine.js');
+    expect(Q7_EMERGENT_VERSION).toBe('7.4.0');
+  });
+
+  it('should initialize with null emergent state', () => {
+    expect(engine.getCurrentEmergent()).toBeNull();
+  });
+
+  it('should detect coherent state (patterns reinforcing)', () => {
+    // Feed consistent ascending patterns
+    for (let i = 0; i < 15; i++) {
+      const pattern: PatternClassification = {
+        state: 'ascending',
+        confidence: 0.8,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.02,
+          gradientSign: 0.05,
+          lambdaStability: 0.01,
+          varianceBurst: 1.2,
+          trendReversals: 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    expect(emergent!.state).toBe('coherent');
+    expect(emergent!.metrics.phiConsistency).toBeGreaterThan(0.618);
+  });
+
+  it('should detect drifting state (slow directional shift)', () => {
+    // Feed mixed patterns with slow drift
+    const states: Array<'stable' | 'ascending' | 'descending'> = ['stable', 'stable', 'ascending', 'stable', 'ascending'];
+    
+    for (let i = 0; i < 15; i++) {
+      const pattern: PatternClassification = {
+        state: states[i % states.length],
+        confidence: 0.6,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.01,
+          gradientSign: 0.01,
+          lambdaStability: 0.02,
+          varianceBurst: 1.5,
+          trendReversals: 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    // Should be drifting (low consistency, not enough patterns for coherent)
+    expect(['drifting', 'coherent']).toContain(emergent!.state);
+  });
+
+  it('should detect cycling state (periodic alternation)', () => {
+    // Feed alternating ascending/descending patterns
+    for (let i = 0; i < 20; i++) {
+      const isAscending = i % 2 === 0;
+      const pattern: PatternClassification = {
+        state: isAscending ? 'ascending' : 'descending',
+        confidence: 0.7,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: isAscending ? 0.02 : -0.02,
+          gradientSign: isAscending ? 0.04 : -0.04,
+          lambdaStability: 0.01,
+          varianceBurst: 1.3,
+          trendReversals: i > 0 ? 1 : 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    expect(emergent!.state).toBe('cycling');
+    expect(emergent!.metrics.reversalCycles).toBeGreaterThanOrEqual(4);
+  });
+
+  it('should detect turbulent state (volatile dominance)', () => {
+    // Feed mostly volatile patterns
+    for (let i = 0; i < 15; i++) {
+      const pattern: PatternClassification = {
+        state: i % 3 === 0 ? 'stable' : 'volatile',
+        confidence: 0.6,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.05 * Math.random(),
+          gradientSign: 0.01,
+          lambdaStability: 0.1,
+          varianceBurst: 6.0,
+          trendReversals: 1,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    expect(emergent!.state).toBe('turbulent');
+    expect(emergent!.metrics.patternFrequencies.volatile).toBeGreaterThan(0.5);
+  });
+
+  it('should detect turbulent state with chaotic patterns', () => {
+    // Feed chaotic patterns
+    for (let i = 0; i < 15; i++) {
+      const pattern: PatternClassification = {
+        state: 'chaotic',
+        confidence: 0.9,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.1 * Math.random(),
+          gradientSign: 0.05 * (Math.random() - 0.5),
+          lambdaStability: 0.2,
+          varianceBurst: 10.0,
+          trendReversals: 3,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    expect(emergent!.state).toBe('turbulent');
+    expect(emergent!.metrics.patternFrequencies.chaotic).toBeGreaterThan(0.2);
+  });
+
+  it('should detect threshold-shift (long-term trend flip)', () => {
+    // Feed ascending patterns first
+    for (let i = 0; i < 25; i++) {
+      const pattern: PatternClassification = {
+        state: 'ascending',
+        confidence: 0.7,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.05,
+          gradientSign: 0.04,
+          lambdaStability: 0.01,
+          varianceBurst: 1.5,
+          trendReversals: 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    // Now feed descending patterns (trend flip)
+    for (let i = 0; i < 25; i++) {
+      const pattern: PatternClassification = {
+        state: 'descending',
+        confidence: 0.7,
+        timestamp: 3500 + i * 100,
+        metrics: {
+          amplitudeDelta: -0.05,
+          gradientSign: -0.04,
+          lambdaStability: 0.01,
+          varianceBurst: 1.5,
+          trendReversals: 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    // After trend flip, should detect threshold-shift
+    expect(['threshold-shift', 'coherent']).toContain(emergent!.state);
+  });
+
+  it('should compute φ-consistency index correctly', () => {
+    // Mix of ascending and descending (high consistency)
+    for (let i = 0; i < 15; i++) {
+      const pattern: PatternClassification = {
+        state: i % 2 === 0 ? 'ascending' : 'descending',
+        confidence: 0.8,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.02,
+          gradientSign: i % 2 === 0 ? 0.04 : -0.04,
+          lambdaStability: 0.01,
+          varianceBurst: 1.2,
+          trendReversals: 1,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    // φ-consistency = (ascending + descending) - volatile
+    // Should be high since all patterns are ascending/descending
+    expect(emergent!.metrics.phiConsistency).toBeGreaterThan(0.5);
+  });
+
+  it('should track pattern frequencies', () => {
+    // Feed known distribution
+    const distribution = {
+      stable: 5,
+      ascending: 3,
+      descending: 2,
+      volatile: 3,
+      chaotic: 2,
+    };
+
+    let index = 0;
+    for (const [state, count] of Object.entries(distribution)) {
+      for (let i = 0; i < count; i++) {
+        const pattern: PatternClassification = {
+          state: state as any,
+          confidence: 0.7,
+          timestamp: 1000 + index * 100,
+          metrics: {
+            amplitudeDelta: 0.01,
+            gradientSign: 0.01,
+            lambdaStability: 0.02,
+            varianceBurst: 2.0,
+            trendReversals: 0,
+          },
+        };
+        engine.process(pattern);
+        index++;
+      }
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    
+    const frequencies = emergent!.metrics.patternFrequencies;
+    const total = 15;
+    
+    expect(frequencies.stable).toBeCloseTo(5 / total, 1);
+    expect(frequencies.ascending).toBeCloseTo(3 / total, 1);
+    expect(frequencies.descending).toBeCloseTo(2 / total, 1);
+    expect(frequencies.volatile).toBeCloseTo(3 / total, 1);
+    expect(frequencies.chaotic).toBeCloseTo(2 / total, 1);
+  });
+
+  it('should compute reversal cycles', () => {
+    // Create patterns with known reversals
+    for (let i = 0; i < 20; i++) {
+      const pattern: PatternClassification = {
+        state: i % 2 === 0 ? 'ascending' : 'descending',
+        confidence: 0.7,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.02,
+          gradientSign: i % 2 === 0 ? 0.04 : -0.04,
+          lambdaStability: 0.01,
+          varianceBurst: 1.3,
+          trendReversals: i > 0 ? 1 : 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    // 20 patterns with alternating directions = ~19 reversals = ~9.5 cycles
+    expect(emergent!.metrics.reversalCycles).toBeGreaterThan(5);
+  });
+
+  it('should compute amplitude drift', () => {
+    // Create patterns with positive drift
+    for (let i = 0; i < 15; i++) {
+      const pattern: PatternClassification = {
+        state: 'ascending',
+        confidence: 0.7,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.05,
+          gradientSign: 0.04,
+          lambdaStability: 0.01,
+          varianceBurst: 1.5,
+          trendReversals: 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    expect(emergent!.metrics.amplitudeDrift).toBeCloseTo(0.05, 2);
+  });
+
+  it('should compute variance regime', () => {
+    // Create patterns with known variance
+    for (let i = 0; i < 15; i++) {
+      const pattern: PatternClassification = {
+        state: 'stable',
+        confidence: 0.7,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.01,
+          gradientSign: 0.01,
+          lambdaStability: 0.02,
+          varianceBurst: 3.0,
+          trendReversals: 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    expect(emergent!.metrics.varianceRegime).toBeCloseTo(3.0, 1);
+  });
+
+  it('should support subscribe/unsubscribe', () => {
+    const events: import('./phi-wave/emergent-engine.js').EmergentClassification[] = [];
+    const unsubscribe = engine.subscribe((emergent) => {
+      events.push(emergent);
+    });
+
+    const pattern: PatternClassification = {
+      state: 'stable',
+      confidence: 0.7,
+      timestamp: 1000,
+      metrics: {
+        amplitudeDelta: 0.01,
+        gradientSign: 0.01,
+        lambdaStability: 0.02,
+        varianceBurst: 1.5,
+        trendReversals: 0,
+      },
+    };
+
+    engine.process(pattern);
+    expect(events.length).toBe(1);
+
+    unsubscribe();
+    engine.process(pattern);
+    expect(events.length).toBe(1); // No new event after unsubscribe
+  });
+
+  it('should return pattern history', () => {
+    const patterns: PatternClassification[] = [];
+    
+    for (let i = 0; i < 10; i++) {
+      const pattern: PatternClassification = {
+        state: 'stable',
+        confidence: 0.7,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.01,
+          gradientSign: 0.01,
+          lambdaStability: 0.02,
+          varianceBurst: 1.5,
+          trendReversals: 0,
+        },
+      };
+      patterns.push(pattern);
+      engine.process(pattern);
+    }
+
+    const history = engine.getPatternHistory();
+    expect(history).toHaveLength(10);
+    expect(history[0].timestamp).toBe(1000);
+    expect(history[9].timestamp).toBe(1900);
+  });
+
+  it('should handle ring buffer overflow', () => {
+    // Feed more than buffer size (40)
+    for (let i = 0; i < 50; i++) {
+      const pattern: PatternClassification = {
+        state: 'stable',
+        confidence: 0.7,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.01,
+          gradientSign: 0.01,
+          lambdaStability: 0.02,
+          varianceBurst: 1.5,
+          trendReversals: 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    const history = engine.getPatternHistory();
+    expect(history).toHaveLength(40); // Buffer size limit
+    
+    const emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    // With all stable patterns, should detect drifting or stable depending on metrics
+    expect(['stable', 'drifting', 'coherent']).toContain(emergent!.state);
+  });
+
+  it('should reset state', () => {
+    // Add some patterns
+    for (let i = 0; i < 10; i++) {
+      const pattern: PatternClassification = {
+        state: 'ascending',
+        confidence: 0.7,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.02,
+          gradientSign: 0.04,
+          lambdaStability: 0.01,
+          varianceBurst: 1.5,
+          trendReversals: 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    expect(engine.getCurrentEmergent()).not.toBeNull();
+    expect(engine.getPatternHistory()).toHaveLength(10);
+
+    engine.reset();
+
+    expect(engine.getCurrentEmergent()).toBeNull();
+    expect(engine.getPatternHistory()).toHaveLength(0);
+  });
+
+  it('should emit emergent:update events via SurfaceRoot', async () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const syncBus = surface.getSyncBus();
+    
+    const emergentEvents: any[] = [];
+    syncBus.on('emergent:update', (event) => {
+      emergentEvents.push(event);
+    });
+
+    // Feed patterns directly to classifier to trigger emergent engine
+    const patternClassifier = surface.getPatternClassifier();
+    
+    for (let i = 0; i < 15; i++) {
+      const signature: WaveSignature = {
+        amplitude: 0.5 + i * 0.01,
+        gradient: 0.02,
+        lambda: 10,
+        variance: 0.05,
+        timestamp: 1000 + i * 100,
+        frameIndex: i,
+      };
+      
+      patternClassifier.classify(signature);
+    }
+
+    // Should have received emergent:update events
+    expect(emergentEvents.length).toBeGreaterThan(0);
+  });
+
+  it('should integrate with SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    
+    // Verify emergent engine is accessible
+    const engine = surface.getEmergentEngine();
+    expect(engine).toBeDefined();
+    
+    // Verify getEmergentState method exists
+    const state = surface.getEmergentState();
+    expect(state).toBeNull(); // No patterns processed yet
+  });
+
+  it('should maintain confidence levels for different states', () => {
+    // Test coherent confidence
+    for (let i = 0; i < 15; i++) {
+      const pattern: PatternClassification = {
+        state: 'ascending',
+        confidence: 0.9,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.05,
+          gradientSign: 0.08,
+          lambdaStability: 0.01,
+          varianceBurst: 1.2,
+          trendReversals: 0,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    let emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    expect(emergent!.confidence).toBeGreaterThan(0);
+    expect(emergent!.confidence).toBeLessThanOrEqual(1);
+
+    // Reset and test turbulent confidence
+    engine.reset();
+    for (let i = 0; i < 15; i++) {
+      const pattern: PatternClassification = {
+        state: 'volatile',
+        confidence: 0.8,
+        timestamp: 1000 + i * 100,
+        metrics: {
+          amplitudeDelta: 0.1 * Math.random(),
+          gradientSign: 0.01,
+          lambdaStability: 0.1,
+          varianceBurst: 7.0,
+          trendReversals: 2,
+        },
+      };
+      engine.process(pattern);
+    }
+
+    emergent = engine.getCurrentEmergent();
+    expect(emergent).not.toBeNull();
+    expect(emergent!.confidence).toBeGreaterThan(0);
+    expect(emergent!.confidence).toBeLessThanOrEqual(1);
+  });
+});

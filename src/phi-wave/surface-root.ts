@@ -8,6 +8,7 @@
  * @tag q7.1-preset-hotswitch
  * @tag q7.3-signature-engine
  * @tag q7.3-pattern-classifier
+ * @tag q7.4-emergent
  */
 
 import type { SurfaceRootConfig, PhiWaveDemoConfig, RendererOptions } from './types.js';
@@ -22,6 +23,7 @@ import { WaveFieldRenderer, createWaveFieldRenderer } from './wave-field-rendere
 import { PhiPresetHotSwitch, createPresetHotSwitch, type PresetId } from './preset-hotswitch.js';
 import { WaveSignatureEngine, createSignatureEngine, type WaveSignature } from './signature-engine.js';
 import { PhiPatternClassifier, createPatternClassifier, type PatternClassification } from './pattern-classifier.js';
+import { PhiEmergentEngine, createEmergentEngine, type EmergentClassification } from './emergent-engine.js';
 
 /**
  * Q7 Integration Version
@@ -69,6 +71,10 @@ export class SurfaceRoot {
   private patternClassifier: PhiPatternClassifier;
   private lastPattern: PatternClassification | null = null;
   
+  // Q7.4-E - Emergent Engine
+  private emergentEngine: PhiEmergentEngine;
+  private lastEmergent: EmergentClassification | null = null;
+  
   // Render loop state
   private running: boolean = false;
   private animationFrameId: number | null = null;
@@ -100,6 +106,9 @@ export class SurfaceRoot {
     
     // Q7.3-P - Initialize pattern classifier
     this.patternClassifier = createPatternClassifier();
+    
+    // Q7.4-E - Initialize emergent engine
+    this.emergentEngine = createEmergentEngine();
     
     // Pre-allocate composite buffer
     this.compositeBuffer = new Float32Array(this.kernel.getPointCount());
@@ -148,10 +157,24 @@ export class SurfaceRoot {
     
     // Q7.3-P - Pattern classifier listener (emit pattern:update via sync bus)
     this.patternClassifier.subscribe((pattern) => {
+      this.lastPattern = pattern;
+      
+      // Feed pattern into emergent engine (Q7.4-E)
+      const emergent = this.emergentEngine.process(pattern);
+      this.lastEmergent = emergent;
+      
+      // Emit pattern:update via sync bus
       this.syncBus.emit({
         type: 'pattern:update',
         timestamp: pattern.timestamp,
         data: pattern,
+      });
+      
+      // Emit emergent:update via sync bus
+      this.syncBus.emit({
+        type: 'emergent:update',
+        timestamp: emergent.timestamp,
+        data: emergent,
       });
     });
   }
@@ -494,6 +517,20 @@ export class SurfaceRoot {
    */
   getLastPattern(): PatternClassification | null {
     return this.lastPattern ? { ...this.lastPattern } : null;
+  }
+  
+  /**
+   * Q7.4-E - Get emergent engine
+   */
+  getEmergentEngine(): PhiEmergentEngine {
+    return this.emergentEngine;
+  }
+  
+  /**
+   * Q7.4-E - Get last emergent state
+   */
+  getEmergentState(): EmergentClassification | null {
+    return this.lastEmergent ? { ...this.lastEmergent } : null;
   }
   
   /**
