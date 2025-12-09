@@ -219,8 +219,36 @@
  * stability coefficient. It prevents cascade failures by detecting early signs of system
  * chaotization and applying φ-based damping before instability propagates.
  * 
- * This completes the Q8 Meta-Control Layer trilogy (Modulation → Phase → Entropy),
- * providing comprehensive adaptive control over the φ-wave interpretation stack.
+ * ### Q8.4 — Φ-Global Stabilizer (Φ-GS)
+ * 
+ * **Purpose**: Final Q8 meta-control layer unifying all Q7 and Q8 outputs into a global
+ * stability framework.
+ * 
+ * #### Key Features
+ * 
+ * 1. **Global Stability Index (GSI)**: Combines coherence, entropy SSS, modulation index,
+ *    and phase PSI into a comprehensive stability metric (0-1 range)
+ * 2. **Global Drift Vector (GDV)**: Synthesizes drift from memory, resonance, and phase
+ *    into a directional instability vector with magnitude and angle
+ * 3. **Global Harmonic Pressure (GHP)**: Measures stress from resonance burst activity
+ *    and harmonic instability (0-1 range)
+ * 4. **5-State Classification**: hyper-stable, stable, tense, unstable, critical
+ * 5. **φ-Stabilization**: Applies φ-based corrections to modulation and phase:
+ *    - tense: φ⁻¹ stabilization (0.618)
+ *    - unstable: φ⁻² stabilization (0.382)
+ *    - critical: φ⁻³ stabilization (0.236)
+ * 
+ * #### Global Stabilizer Philosophy
+ * 
+ * The Global Stabilizer acts as the final unification layer, collecting all Q7
+ * interpretation outputs (signature → pattern → emergent → memory → resonance → coherence)
+ * and all Q8 meta-control outputs (modulation → phase → entropy) to compute system-wide
+ * stability metrics. It applies φ-based corrections to the modulation and phase controllers
+ * to maintain coherent operation under all load conditions, preventing runaway oscillations
+ * and cascade failures while maintaining system expressiveness.
+ * 
+ * This completes the Q8 Meta-Control Layer quartet (Modulation → Phase → Entropy → Global),
+ * providing comprehensive adaptive control and unification over the φ-wave interpretation stack.
  * 
  * @module phi-wave
  * @tag q7-integrated
@@ -233,6 +261,8 @@
  * @tag q7.7-coherence-stabilizer
  * @tag q8.1-mod-core
  * @tag q8.2-phase-modulator
+ * @tag q8.3-entropy-regulator
+ * @tag q8.4-global-stabilizer
  */
 
 // Types
@@ -318,6 +348,10 @@ export { PhiPhaseModulator, createPhaseModulator, Q8_PHASE_VERSION } from './q8/
 // Q8.3 - Entropy Regulator
 export type { EntropyState, EntropyData, EntropyListener } from './q8/entropy-regulator.js';
 export { PhiEntropyRegulator, createEntropyRegulator, Q8_ENTROPY_VERSION } from './q8/entropy-regulator.js';
+
+// Q8.4 - Global Stabilizer
+export type { GlobalStabilityState, GlobalDriftVector, GlobalStabilizerData, GlobalStabilizerListener, Q7State, Q8State } from './q8/global-stabilizer.js';
+export { PhiGlobalStabilizer, createGlobalStabilizer, Q8_GLOBAL_VERSION } from './q8/global-stabilizer.js';
 
 // Demo
 export { generateDemoHTML, getDemoConfig } from './phi-wave-demo.js';

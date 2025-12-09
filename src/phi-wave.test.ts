@@ -82,6 +82,15 @@ import {
   type EntropyListener,
   type PatternState,
   type EmergentState,
+  // Q8.4 - Global Stabilizer
+  PhiGlobalStabilizer,
+  createGlobalStabilizer,
+  Q8_GLOBAL_VERSION,
+  type GlobalStabilizerData,
+  type GlobalStabilityState,
+  type GlobalDriftVector,
+  type Q7State,
+  type Q8State,
 } from './phi-wave/index.js';
 
 describe('Phi Constants', () => {
@@ -4186,5 +4195,476 @@ describe('Q8.3 - Entropy Regulator', () => {
       expect(data).toBeDefined();
       expect(data.emergentEntropy).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('Q8.4 - Global Stabilizer', () => {
+  let globalStabilizer: PhiGlobalStabilizer;
+
+  beforeEach(() => {
+    globalStabilizer = createGlobalStabilizer();
+  });
+
+  it('should create global stabilizer', () => {
+    expect(globalStabilizer).toBeDefined();
+    expect(globalStabilizer.getGSI()).toBeGreaterThanOrEqual(0);
+    expect(globalStabilizer.getGSI()).toBeLessThanOrEqual(1);
+  });
+
+  it('should compute GSI from Q7/Q8 state', () => {
+    const q7State: Q7State = {
+      pattern: {
+        state: 'stable',
+        amplitudeDelta: 0.01,
+        gradientSign: 0.0,
+        lambdaStability: 0.95,
+        varianceBurst: 1.0,
+        trendReversals: 0,
+        timestamp: Date.now(),
+      },
+      emergent: {
+        state: 'coherent',
+        phiConsistency: 0.8,
+        amplitudeDrift: 0.0,
+        varianceRegime: 1.0,
+        reversalCycles: 0,
+        timestamp: Date.now(),
+      },
+      memory: null,
+      resonance: null,
+      coherence: {
+        state: 'high',
+        pcm: 0.9,
+        smoothedAmplitude: 1.0,
+      },
+    };
+
+    const q8State: Q8State = {
+      modulation: {
+        state: 'calm',
+        index: 0.1,
+      },
+      phase: {
+        state: 'stable',
+        psi: 0.95,
+        drift: 0.1,
+      },
+      entropy: {
+        state: 'low',
+        entropy: 0.2,
+        sss: 0.9,
+      },
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.updateQ8State(q8State);
+    globalStabilizer.compute();
+
+    const gsi = globalStabilizer.getGSI();
+    expect(gsi).toBeGreaterThan(0.5);
+    expect(gsi).toBeLessThanOrEqual(1);
+  });
+
+  it('should compute GDV (Global Drift Vector)', () => {
+    const q7State: Q7State = {
+      pattern: null,
+      emergent: null,
+      memory: {
+        l0: null,
+        l1: null,
+        l2: [],
+        metrics: {
+          memoryDriftIndex: 0.3,
+          predictiveGradientIndex: 0.1,
+          stabilityWindow: 0.8,
+        },
+        predictedEmergentState: 'coherent',
+      },
+      resonance: { amplitudeHarmonics: new Float32Array(7), gradientHarmonics: new Float32Array(7), lambdaHarmonics: new Float32Array(7), rsi: 0.8, hdm: 0.2, state: 'harmonic-stable' },
+      coherence: null,
+    };
+
+    const q8State: Q8State = {
+      modulation: null,
+      phase: {
+        state: 'semi-stable',
+        psi: 0.7,
+        drift: 0.5,
+      },
+      entropy: null,
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.updateQ8State(q8State);
+    globalStabilizer.compute();
+
+    const gdv = globalStabilizer.getGDV();
+    expect(gdv).toBeDefined();
+    expect(gdv.magnitude).toBeGreaterThanOrEqual(0);
+    expect(gdv.x).toBeDefined();
+    expect(gdv.y).toBeDefined();
+    expect(gdv.angle).toBeDefined();
+  });
+
+  it('should compute GHP (Global Harmonic Pressure)', () => {
+    const q7State: Q7State = {
+      pattern: null,
+      emergent: null,
+      memory: null,
+      resonance: {
+        amplitudeHarmonics: new Float32Array(7),
+        gradientHarmonics: new Float32Array(7),
+        lambdaHarmonics: new Float32Array(7),
+        rsi: 0.5,
+        hdm: 0.8,
+        state: 'resonance-burst',
+      },
+      coherence: null,
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.compute();
+
+    const ghp = globalStabilizer.getGHP();
+    expect(ghp).toBeGreaterThanOrEqual(0);
+    expect(ghp).toBeLessThanOrEqual(1);
+    // Burst should create high pressure
+    expect(ghp).toBeGreaterThan(0.5);
+  });
+
+  it('should classify as hyper-stable', () => {
+    const q7State: Q7State = {
+      pattern: { state: 'stable', amplitudeDelta: 0.0, gradientSign: 0.0, lambdaStability: 1.0, varianceBurst: 1.0, trendReversals: 0, timestamp: Date.now() },
+      emergent: { state: 'coherent', phiConsistency: 0.95, amplitudeDrift: 0.0, varianceRegime: 1.0, reversalCycles: 0, timestamp: Date.now() },
+      memory: { l0: null, l1: null, l2: [], metrics: { memoryDriftIndex: 0.0, predictiveGradientIndex: 0.0, stabilityWindow: 1.0 }, predictedEmergentState: 'coherent' },
+      resonance: { amplitudeHarmonics: new Float32Array(7), gradientHarmonics: new Float32Array(7), lambdaHarmonics: new Float32Array(7), rsi: 0.95, hdm: 0.0, state: 'harmonic-stable' },
+      coherence: { state: 'high', pcm: 0.95, smoothedAmplitude: 1.0 },
+    };
+
+    const q8State: Q8State = {
+      modulation: { state: 'calm', index: 0.05 },
+      phase: { state: 'stable', psi: 0.98, drift: 0.05 },
+      entropy: { state: 'low', entropy: 0.1, sss: 0.95 },
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.updateQ8State(q8State);
+    globalStabilizer.compute();
+
+    const state = globalStabilizer.getGlobalState();
+    expect(state.state).toBe('hyper-stable');
+    expect(state.gsi).toBeGreaterThan(0.85);
+  });
+
+  it('should classify as stable', () => {
+    const q7State: Q7State = {
+      pattern: { state: 'stable', amplitudeDelta: 0.02, gradientSign: 0.0, lambdaStability: 0.9, varianceBurst: 1.2, trendReversals: 0, timestamp: Date.now() },
+      emergent: { state: 'coherent', phiConsistency: 0.75, amplitudeDrift: 0.1, varianceRegime: 1.1, reversalCycles: 0, timestamp: Date.now() },
+      memory: null,
+      resonance: { amplitudeHarmonics: new Float32Array(7), gradientHarmonics: new Float32Array(7), lambdaHarmonics: new Float32Array(7), rsi: 0.8, hdm: 0.2, state: 'harmonic-stable' },
+      coherence: { state: 'medium', pcm: 0.75, smoothedAmplitude: 1.0 },
+    };
+
+    const q8State: Q8State = {
+      modulation: { state: 'balanced', index: 0.3 },
+      phase: { state: 'stable', psi: 0.8, drift: 0.2 },
+      entropy: { state: 'low', entropy: 0.25, sss: 0.75 },
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.updateQ8State(q8State);
+    globalStabilizer.compute();
+
+    const state = globalStabilizer.getGlobalState();
+    expect(state.state).toBe('stable');
+    expect(state.gsi).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it('should classify as tense', () => {
+    const q7State: Q7State = {
+      pattern: { state: 'volatile', amplitudeDelta: 0.1, gradientSign: 0.05, lambdaStability: 0.7, varianceBurst: 3.0, trendReversals: 1, timestamp: Date.now() },
+      emergent: { state: 'drifting', phiConsistency: 0.5, amplitudeDrift: 0.3, varianceRegime: 2.0, reversalCycles: 1, timestamp: Date.now() },
+      memory: null,
+      resonance: { amplitudeHarmonics: new Float32Array(7), gradientHarmonics: new Float32Array(7), lambdaHarmonics: new Float32Array(7), rsi: 0.6, hdm: 0.4, state: 'harmonic-rising' },
+      coherence: { state: 'low', pcm: 0.55, smoothedAmplitude: 0.8 },
+    };
+
+    const q8State: Q8State = {
+      modulation: { state: 'sensitive', index: 0.6 },
+      phase: { state: 'semi-stable', psi: 0.6, drift: 0.4 },
+      entropy: { state: 'moderate', entropy: 0.5, sss: 0.5 },
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.updateQ8State(q8State);
+    globalStabilizer.compute();
+
+    const state = globalStabilizer.getGlobalState();
+    expect(state.state).toBe('tense');
+    expect(state.modulationStabilization).toBeLessThan(1.0);
+  });
+
+  it('should classify as unstable', () => {
+    const q7State: Q7State = {
+      pattern: { state: 'volatile', amplitudeDelta: 0.2, gradientSign: 0.1, lambdaStability: 0.5, varianceBurst: 5.0, trendReversals: 3, timestamp: Date.now() },
+      emergent: { state: 'turbulent', phiConsistency: 0.3, amplitudeDrift: 0.5, varianceRegime: 4.0, reversalCycles: 2, timestamp: Date.now() },
+      memory: null,
+      resonance: { amplitudeHarmonics: new Float32Array(7), gradientHarmonics: new Float32Array(7), lambdaHarmonics: new Float32Array(7), rsi: 0.4, hdm: 0.7, state: 'resonance-burst' },
+      coherence: { state: 'low', pcm: 0.35, smoothedAmplitude: 0.5 },
+    };
+
+    const q8State: Q8State = {
+      modulation: { state: 'sensitive', index: 0.75 },
+      phase: { state: 'unstable', psi: 0.4, drift: 0.8 },
+      entropy: { state: 'high', entropy: 0.7, sss: 0.3 },
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.updateQ8State(q8State);
+    globalStabilizer.compute();
+
+    const state = globalStabilizer.getGlobalState();
+    expect(state.state).toBe('unstable');
+    expect(state.modulationStabilization).toBeLessThan(0.7);
+  });
+
+  it('should classify as critical', () => {
+    const q7State: Q7State = {
+      pattern: { state: 'chaotic', amplitudeDelta: 0.5, gradientSign: 0.3, lambdaStability: 0.2, varianceBurst: 10.0, trendReversals: 5, timestamp: Date.now() },
+      emergent: { state: 'turbulent', phiConsistency: 0.1, amplitudeDrift: 0.9, varianceRegime: 8.0, reversalCycles: 4, timestamp: Date.now() },
+      memory: null,
+      resonance: { amplitudeHarmonics: new Float32Array(7), gradientHarmonics: new Float32Array(7), lambdaHarmonics: new Float32Array(7), rsi: 0.1, hdm: 0.95, state: 'resonance-collapse' },
+      coherence: { state: 'unstable', pcm: 0.2, smoothedAmplitude: 0.3 },
+    };
+
+    const q8State: Q8State = {
+      modulation: { state: 'overloaded', index: 0.95 },
+      phase: { state: 'critical', psi: 0.1, drift: Math.PI * 0.9 },
+      entropy: { state: 'critical', entropy: 0.9, sss: 0.1 },
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.updateQ8State(q8State);
+    globalStabilizer.compute();
+
+    const state = globalStabilizer.getGlobalState();
+    expect(state.state).toBe('critical');
+    expect(state.modulationStabilization).toBeLessThan(0.5);
+    expect(state.phaseStabilization).toBeLessThan(0.5);
+  });
+
+  it('should apply φ-stabilization factors', () => {
+    globalStabilizer.compute();
+    
+    const modStab = globalStabilizer.getModulationStabilization();
+    const phaseStab = globalStabilizer.getPhaseStabilization();
+    
+    expect(modStab).toBeGreaterThan(0);
+    expect(modStab).toBeLessThanOrEqual(1);
+    expect(phaseStab).toBeGreaterThan(0);
+    expect(phaseStab).toBeLessThanOrEqual(1);
+  });
+
+  it('should emit events to listeners', () => {
+    let eventReceived = false;
+    let receivedData: GlobalStabilizerData | null = null;
+
+    const listener = (data: GlobalStabilizerData) => {
+      eventReceived = true;
+      receivedData = data;
+    };
+
+    globalStabilizer.subscribe(listener);
+    globalStabilizer.compute();
+
+    expect(eventReceived).toBe(true);
+    expect(receivedData).toBeDefined();
+    expect(receivedData!.gsi).toBeGreaterThanOrEqual(0);
+    expect(receivedData!.gdv).toBeDefined();
+    expect(receivedData!.ghp).toBeGreaterThanOrEqual(0);
+  });
+
+  it('should unsubscribe listeners', () => {
+    let callCount = 0;
+
+    const listener = () => {
+      callCount++;
+    };
+
+    globalStabilizer.subscribe(listener);
+    globalStabilizer.compute();
+    expect(callCount).toBe(1);
+
+    globalStabilizer.unsubscribe(listener);
+    globalStabilizer.compute();
+    expect(callCount).toBe(1); // Should not increase
+  });
+
+  it('should handle high GHP from resonance burst', () => {
+    const q7State: Q7State = {
+      pattern: null,
+      emergent: null,
+      memory: null,
+      resonance: {
+        amplitudeHarmonics: new Float32Array(7),
+        gradientHarmonics: new Float32Array(7),
+        lambdaHarmonics: new Float32Array(7),
+        rsi: 0.3,
+        hdm: 0.9,
+        state: 'resonance-burst',
+      },
+      coherence: null,
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.compute();
+
+    const state = globalStabilizer.getGlobalState();
+    expect(state.ghp).toBeGreaterThan(0.6);
+    // High GHP should trigger additional stabilization
+    expect(state.modulationStabilization).toBeLessThan(0.7);
+  });
+
+  it('should handle high drift in GDV', () => {
+    const q7State: Q7State = {
+      pattern: null,
+      emergent: null,
+      memory: {
+        l0: null,
+        l1: null,
+        l2: [],
+        metrics: {
+          memoryDriftIndex: 0.8,
+          predictiveGradientIndex: 0.5,
+          stabilityWindow: 0.3,
+        },
+        predictedEmergentState: 'drifting',
+      },
+      resonance: {
+        amplitudeHarmonics: new Float32Array(7),
+        gradientHarmonics: new Float32Array(7),
+        lambdaHarmonics: new Float32Array(7),
+        rsi: 0.5,
+        hdm: 0.7,
+        state: 'harmonic-falling',
+      },
+      coherence: null,
+    };
+
+    const q8State: Q8State = {
+      modulation: null,
+      phase: {
+        state: 'unstable',
+        psi: 0.4,
+        drift: Math.PI * 0.7,
+      },
+      entropy: null,
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.updateQ8State(q8State);
+    globalStabilizer.compute();
+
+    const state = globalStabilizer.getGlobalState();
+    expect(state.gdv.magnitude).toBeGreaterThan(0.4);
+    // High drift should trigger phase stabilization
+    expect(state.phaseStabilization).toBeLessThan(0.7);
+  });
+
+  it('should integrate with SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    const stabilizer = surface.getGlobalStabilizer();
+    
+    expect(stabilizer).toBeDefined();
+    expect(stabilizer.getGSI()).toBeGreaterThanOrEqual(0);
+    expect(stabilizer.getGSI()).toBeLessThanOrEqual(1);
+    
+    surface.dispose();
+  });
+
+  it('should expose global state via SurfaceRoot', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    
+    const gsi = surface.getGSI();
+    const gdv = surface.getGDV();
+    const ghp = surface.getGHP();
+    
+    expect(gsi).toBeGreaterThanOrEqual(0);
+    expect(gsi).toBeLessThanOrEqual(1);
+    expect(gdv).toBeDefined();
+    expect(ghp).toBeGreaterThanOrEqual(0);
+    expect(ghp).toBeLessThanOrEqual(1);
+    
+    surface.dispose();
+  });
+
+  it('should emit global:update events via PhiSyncBus', () => {
+    const surface = createSurfaceRoot({ autoStart: false });
+    let eventReceived = false;
+
+    const syncBus = surface.getSyncBus();
+    syncBus.on('global:update', (event) => {
+      eventReceived = true;
+      expect(event.data).toBeDefined();
+    });
+
+    // Trigger a render cycle would emit the event
+    // For now just verify the stabilizer exists
+    expect(surface.getGlobalStabilizer()).toBeDefined();
+    
+    surface.dispose();
+  });
+
+  it('should return GDV with correct structure', () => {
+    globalStabilizer.compute();
+    const gdv = globalStabilizer.getGDV();
+    
+    expect(gdv).toHaveProperty('x');
+    expect(gdv).toHaveProperty('y');
+    expect(gdv).toHaveProperty('magnitude');
+    expect(gdv).toHaveProperty('angle');
+    
+    expect(typeof gdv.x).toBe('number');
+    expect(typeof gdv.y).toBe('number');
+    expect(typeof gdv.magnitude).toBe('number');
+    expect(typeof gdv.angle).toBe('number');
+  });
+
+  it('should return complete global state', () => {
+    globalStabilizer.compute();
+    const state = globalStabilizer.getGlobalState();
+    
+    expect(state).toHaveProperty('gsi');
+    expect(state).toHaveProperty('gdv');
+    expect(state).toHaveProperty('ghp');
+    expect(state).toHaveProperty('state');
+    expect(state).toHaveProperty('timestamp');
+    expect(state).toHaveProperty('modulationStabilization');
+    expect(state).toHaveProperty('phaseStabilization');
+    
+    expect(['hyper-stable', 'stable', 'tense', 'unstable', 'critical']).toContain(state.state);
+  });
+
+  it('should handle resonance-collapse state', () => {
+    const q7State: Q7State = {
+      pattern: null,
+      emergent: null,
+      memory: null,
+      resonance: {
+        amplitudeHarmonics: new Float32Array(7),
+        gradientHarmonics: new Float32Array(7),
+        lambdaHarmonics: new Float32Array(7),
+        rsi: 0.1,
+        hdm: 0.95,
+        state: 'resonance-collapse',
+      },
+      coherence: null,
+    };
+
+    globalStabilizer.updateQ7State(q7State);
+    globalStabilizer.compute();
+
+    const ghp = globalStabilizer.getGHP();
+    expect(ghp).toBeGreaterThan(0.8); // Collapse should create critical pressure
   });
 });

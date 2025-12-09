@@ -32,6 +32,7 @@ import { PhiCoherenceStabilizer, createCoherenceStabilizer, type CoherenceState 
 import { PhiModulationCore, createModulationCore, type ModulationData, type LayerWeights, type Q7CombinedState } from './q8/modulation-core.js';
 import { PhiPhaseModulator, createPhaseModulator, type PhaseModulatorState } from './q8/phase-modulator.js';
 import { PhiEntropyRegulator, createEntropyRegulator, type EntropyData, type EntropyState } from './q8/entropy-regulator.js';
+import { PhiGlobalStabilizer, createGlobalStabilizer, type GlobalStabilizerData, type Q7State, type Q8State } from './q8/global-stabilizer.js';
 
 /**
  * Q7 Integration Version
@@ -107,6 +108,10 @@ export class SurfaceRoot {
   private entropyRegulator: PhiEntropyRegulator;
   private lastEntropy: EntropyData | null = null;
   
+  // Q8.4 - Global Stabilizer
+  private globalStabilizer: PhiGlobalStabilizer;
+  private lastGlobalState: GlobalStabilizerData | null = null;
+  
   // Render loop state
   private running: boolean = false;
   private animationFrameId: number | null = null;
@@ -159,6 +164,9 @@ export class SurfaceRoot {
     
     // Q8.3 - Initialize entropy regulator
     this.entropyRegulator = createEntropyRegulator();
+    
+    // Q8.4 - Initialize global stabilizer
+    this.globalStabilizer = createGlobalStabilizer();
     
     // Pre-allocate composite buffer
     this.compositeBuffer = new Float32Array(this.kernel.getPointCount());
@@ -450,6 +458,63 @@ export class SurfaceRoot {
         type: 'entropy:update',
         timestamp: now,
         data: this.lastEntropy,
+      });
+    }
+    
+    // Q8.4 - Compute global stabilization (non-blocking, final unification layer)
+    if (this.lastPattern && this.lastEmergent && this.lastMemoryState && this.lastResonance && this.lastCoherence &&
+        this.lastModulation && this.lastPhaseState && this.lastEntropy) {
+      // Prepare Q7 state snapshot
+      const q7StateSnapshot: Q7State = {
+        pattern: this.lastPattern,
+        emergent: this.lastEmergent ? { 
+          state: this.lastEmergent.state, 
+          phiConsistency: this.lastEmergent.phiConsistency,
+          amplitudeDrift: this.lastEmergent.amplitudeDrift,
+          varianceRegime: this.lastEmergent.varianceRegime,
+          reversalCycles: this.lastEmergent.reversalCycles,
+          timestamp: this.lastEmergent.timestamp 
+        } : null,
+        memory: this.lastMemoryState,
+        resonance: this.lastResonance ? this.lastResonance.spectrum : null,
+        coherence: this.lastCoherence ? {
+          state: this.lastCoherence.state,
+          pcm: this.lastCoherence.pcm.value,
+          smoothedAmplitude: this.lastCoherence.smoothedAmplitude
+        } : null,
+      };
+      
+      // Prepare Q8 state snapshot
+      const q8StateSnapshot: Q8State = {
+        modulation: this.lastModulation ? {
+          state: this.lastModulation.state,
+          index: this.lastModulation.modulationIndex
+        } : null,
+        phase: this.lastPhaseState ? {
+          state: this.lastPhaseState.stability,
+          psi: this.lastPhaseState.psi,
+          drift: this.lastPhaseState.drift
+        } : null,
+        entropy: this.lastEntropy ? {
+          state: this.lastEntropy.state,
+          entropy: this.lastEntropy.entropy,
+          sss: this.lastEntropy.sss
+        } : null,
+      };
+      
+      // Update global stabilizer with complete state
+      this.globalStabilizer.updateQ7State(q7StateSnapshot);
+      this.globalStabilizer.updateQ8State(q8StateSnapshot);
+      this.globalStabilizer.compute();
+      
+      // Get global state
+      this.lastGlobalState = this.globalStabilizer.getGlobalState();
+      
+      // Emit global:update via sync bus
+      this.syncBus.emit({
+        type: 'global:update',
+        timestamp: now,
+        data: this.lastGlobalState,
       });
     }
     
@@ -833,6 +898,41 @@ export class SurfaceRoot {
    */
   getEntropyState(): EntropyState {
     return this.entropyRegulator.getEntropyState();
+  }
+  
+  /**
+   * Q8.4 - Get global stabilizer instance
+   */
+  getGlobalStabilizer(): PhiGlobalStabilizer {
+    return this.globalStabilizer;
+  }
+  
+  /**
+   * Q8.4 - Get current global state
+   */
+  getGlobalState(): GlobalStabilizerData | null {
+    return this.lastGlobalState;
+  }
+  
+  /**
+   * Q8.4 - Get Global Stability Index (GSI)
+   */
+  getGSI(): number {
+    return this.globalStabilizer.getGSI();
+  }
+  
+  /**
+   * Q8.4 - Get Global Drift Vector (GDV)
+   */
+  getGDV() {
+    return this.globalStabilizer.getGDV();
+  }
+  
+  /**
+   * Q8.4 - Get Global Harmonic Pressure (GHP)
+   */
+  getGHP(): number {
+    return this.globalStabilizer.getGHP();
   }
   
   /**
