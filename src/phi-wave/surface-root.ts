@@ -7,6 +7,7 @@
  * @tag q7-integrated
  * @tag q7.1-preset-hotswitch
  * @tag q7.3-signature-engine
+ * @tag q7.3-pattern-classifier
  */
 
 import type { SurfaceRootConfig, PhiWaveDemoConfig, RendererOptions } from './types.js';
@@ -20,6 +21,7 @@ import { PhaseController, createPhaseController } from './phase-controller.js';
 import { WaveFieldRenderer, createWaveFieldRenderer } from './wave-field-renderer.js';
 import { PhiPresetHotSwitch, createPresetHotSwitch, type PresetId } from './preset-hotswitch.js';
 import { WaveSignatureEngine, createSignatureEngine, type WaveSignature } from './signature-engine.js';
+import { PhiPatternClassifier, createPatternClassifier, type PatternClassification } from './pattern-classifier.js';
 
 /**
  * Q7 Integration Version
@@ -63,6 +65,10 @@ export class SurfaceRoot {
   private signatureEngine: WaveSignatureEngine;
   private lastSignature: WaveSignature | null = null;
   
+  // Q7.3-P - Pattern Classifier
+  private patternClassifier: PhiPatternClassifier;
+  private lastPattern: PatternClassification | null = null;
+  
   // Render loop state
   private running: boolean = false;
   private animationFrameId: number | null = null;
@@ -91,6 +97,9 @@ export class SurfaceRoot {
     
     // Q7.3 - Initialize signature engine
     this.signatureEngine = createSignatureEngine();
+    
+    // Q7.3-P - Initialize pattern classifier
+    this.patternClassifier = createPatternClassifier();
     
     // Pre-allocate composite buffer
     this.compositeBuffer = new Float32Array(this.kernel.getPointCount());
@@ -135,6 +144,15 @@ export class SurfaceRoot {
         const config = this.presetHotSwitch.getCurrentConfig();
         this.applyPreset(config.id);
       }
+    });
+    
+    // Q7.3-P - Pattern classifier listener (emit pattern:update via sync bus)
+    this.patternClassifier.subscribe((pattern) => {
+      this.syncBus.emit({
+        type: 'pattern:update',
+        timestamp: pattern.timestamp,
+        data: pattern,
+      });
     });
   }
   
@@ -230,6 +248,11 @@ export class SurfaceRoot {
     
     // Q7.3 - Compute wave signature
     this.lastSignature = this.signatureEngine.computeSignature(frameData, this.resolution);
+    
+    // Q7.3-P - Classify pattern from signature (non-blocking)
+    if (this.lastSignature) {
+      this.lastPattern = this.patternClassifier.classify(this.lastSignature);
+    }
     
     // Render
     this.renderer.render(frameData, this.resolution);
@@ -457,6 +480,20 @@ export class SurfaceRoot {
    */
   getLastSignature(): WaveSignature | null {
     return this.lastSignature ? { ...this.lastSignature } : null;
+  }
+  
+  /**
+   * Q7.3-P - Get pattern classifier
+   */
+  getPatternClassifier(): PhiPatternClassifier {
+    return this.patternClassifier;
+  }
+  
+  /**
+   * Q7.3-P - Get last classified pattern
+   */
+  getLastPattern(): PatternClassification | null {
+    return this.lastPattern ? { ...this.lastPattern } : null;
   }
   
   /**

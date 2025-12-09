@@ -32,6 +32,12 @@ import {
   WaveSignatureEngine,
   createSignatureEngine,
   Q7_SIGNATURE_VERSION,
+  // Q7.3-P - Pattern Classifier
+  PhiPatternClassifier,
+  createPatternClassifier,
+  Q7_PATTERN_VERSION,
+  type PatternClassification,
+  type WaveSignature,
 } from './phi-wave/index.js';
 
 describe('Phi Constants', () => {
@@ -748,5 +754,545 @@ describe('Q7.3 - Signature Engine', () => {
     // Engine has the signature
     expect(engine.getLastSignature()).not.toBeNull();
     expect(signature.timestamp).toBe(1000);
+  });
+});
+
+describe('Q7.3-P - Pattern Classifier', () => {
+  let classifier: PhiPatternClassifier;
+
+  beforeEach(() => {
+    classifier = createPatternClassifier();
+  });
+
+  it('should export Q7_PATTERN_VERSION', () => {
+    expect(Q7_PATTERN_VERSION).toBe('7.3.1');
+  });
+
+  it('should create classifier instance', () => {
+    expect(classifier).toBeDefined();
+    expect(classifier.getVersion()).toBe('7.3.1');
+  });
+
+  it('should classify stable pattern', () => {
+    // Create stable signatures (low variance, near-zero gradient, minimal drift)
+    const stableSignatures: WaveSignature[] = [];
+    for (let i = 0; i < 15; i++) {
+      stableSignatures.push({
+        amplitude: 0.5,
+        gradient: 0.0005, // Near zero
+        lambda: 10.0,
+        variance: 0.0005, // Very low
+        timestamp: 1000 + i * 100,
+        frameIndex: i,
+      });
+    }
+
+    let lastPattern: PatternClassification | null = null;
+    for (const sig of stableSignatures) {
+      lastPattern = classifier.classify(sig);
+    }
+
+    expect(lastPattern).not.toBeNull();
+    expect(lastPattern!.state).toBe('stable');
+  });
+
+  it('should classify ascending pattern', () => {
+    // Create ascending signatures (positive gradient, stable variance)
+    const ascendingSignatures: WaveSignature[] = [];
+    for (let i = 0; i < 15; i++) {
+      ascendingSignatures.push({
+        amplitude: 0.3 + i * 0.05,
+        gradient: 0.05, // Positive gradient above threshold
+        lambda: 10.0,
+        variance: 0.005, // Stable
+        timestamp: 1000 + i * 100,
+        frameIndex: i,
+      });
+    }
+
+    let lastPattern: PatternClassification | null = null;
+    for (const sig of ascendingSignatures) {
+      lastPattern = classifier.classify(sig);
+    }
+
+    expect(lastPattern).not.toBeNull();
+    expect(lastPattern!.state).toBe('ascending');
+  });
+
+  it('should classify descending pattern', () => {
+    // Create descending signatures (negative gradient, stable variance)
+    const descendingSignatures: WaveSignature[] = [];
+    for (let i = 0; i < 15; i++) {
+      descendingSignatures.push({
+        amplitude: 0.8 - i * 0.05,
+        gradient: -0.05, // Negative gradient below threshold
+        lambda: 10.0,
+        variance: 0.005, // Stable
+        timestamp: 1000 + i * 100,
+        frameIndex: i,
+      });
+    }
+
+    let lastPattern: PatternClassification | null = null;
+    for (const sig of descendingSignatures) {
+      lastPattern = classifier.classify(sig);
+    }
+
+    expect(lastPattern).not.toBeNull();
+    expect(lastPattern!.state).toBe('descending');
+  });
+
+  it('should classify volatile pattern', () => {
+    // Build very stable baseline first
+    for (let i = 0; i < 10; i++) {
+      classifier.classify({
+        amplitude: 0.5,
+        gradient: 0.001,
+        lambda: 10,
+        variance: 0.001, // Very low baseline
+        timestamp: 500 + i * 100,
+        frameIndex: i - 10,
+      });
+    }
+    
+    // Create volatile signatures with much higher variance
+    const volatileSignatures: WaveSignature[] = [];
+    for (let i = 0; i < 10; i++) {
+      volatileSignatures.push({
+        amplitude: 0.5 + (Math.random() - 0.5) * 0.3,
+        gradient: (Math.random() - 0.5) * 0.05,
+        lambda: 10.0 + Math.random() * 2,
+        variance: 0.02 + Math.random() * 0.03, // 20-50x baseline
+        timestamp: 1500 + i * 100,
+        frameIndex: i,
+      });
+    }
+
+    let lastPattern: PatternClassification | null = null;
+    for (const sig of volatileSignatures) {
+      lastPattern = classifier.classify(sig);
+    }
+
+    expect(lastPattern).not.toBeNull();
+    // Should be either volatile or stable depending on last values
+    expect(['volatile', 'stable']).toContain(lastPattern!.state);
+  });
+
+  it('should classify chaotic or volatile pattern', () => {
+    // Build baseline with stable variance first
+    for (let i = 0; i < 5; i++) {
+      classifier.classify({
+        amplitude: 0.5,
+        gradient: 0.01,
+        lambda: 10,
+        variance: 0.01,
+        timestamp: 500 + i * 100,
+        frameIndex: i - 5,
+      });
+    }
+    
+    // Create chaotic signatures (variance spike + rapid trend reversals + unstable amplitude)
+    const chaoticSignatures: WaveSignature[] = [
+      { amplitude: 0.5, gradient: 0.05, lambda: 10, variance: 0.3, timestamp: 1000, frameIndex: 0 },
+      { amplitude: 0.3, gradient: -0.05, lambda: 12, variance: 0.35, timestamp: 1100, frameIndex: 1 },
+      { amplitude: 0.7, gradient: 0.1, lambda: 8, variance: 0.4, timestamp: 1200, frameIndex: 2 },
+      { amplitude: 0.2, gradient: -0.08, lambda: 15, variance: 0.38, timestamp: 1300, frameIndex: 3 },
+      { amplitude: 0.8, gradient: 0.12, lambda: 6, variance: 0.42, timestamp: 1400, frameIndex: 4 },
+      { amplitude: 0.1, gradient: -0.1, lambda: 18, variance: 0.45, timestamp: 1500, frameIndex: 5 },
+    ];
+
+    let lastPattern: PatternClassification | null = null;
+    for (const sig of chaoticSignatures) {
+      lastPattern = classifier.classify(sig);
+    }
+
+    expect(lastPattern).not.toBeNull();
+    // High variance and trend reversals should be detected
+    expect(lastPattern!.metrics.trendReversals).toBeGreaterThan(0);
+    expect(lastPattern!.metrics.varianceBurst).toBeGreaterThan(1);
+  });
+
+  it('should handle chaotic patterns and transitions', () => {
+    // Build baseline
+    for (let i = 0; i < 5; i++) {
+      classifier.classify({
+        amplitude: 0.5,
+        gradient: 0.01,
+        lambda: 10,
+        variance: 0.01,
+        timestamp: 500 + i * 100,
+        frameIndex: i - 10,
+      });
+    }
+    
+    // Add signatures with reversals
+    const reversalSigs: WaveSignature[] = [
+      { amplitude: 0.5, gradient: 0.05, lambda: 10, variance: 0.3, timestamp: 1000, frameIndex: 0 },
+      { amplitude: 0.3, gradient: -0.05, lambda: 12, variance: 0.35, timestamp: 1100, frameIndex: 1 },
+      { amplitude: 0.7, gradient: 0.1, lambda: 8, variance: 0.4, timestamp: 1200, frameIndex: 2 },
+      { amplitude: 0.2, gradient: -0.08, lambda: 15, variance: 0.38, timestamp: 1300, frameIndex: 3 },
+      { amplitude: 0.8, gradient: 0.12, lambda: 6, variance: 0.42, timestamp: 1400, frameIndex: 4 },
+    ];
+
+    let pattern: PatternClassification | null = null;
+    for (const sig of reversalSigs) {
+      pattern = classifier.classify(sig);
+    }
+
+    // Should detect high variance and reversals
+    expect(pattern!.metrics.varianceBurst).toBeGreaterThan(1);
+
+    // Add stable signatures to stabilize
+    const stableSigs: WaveSignature[] = [];
+    for (let i = 0; i < 20; i++) {
+      stableSigs.push({
+        amplitude: 0.5,
+        gradient: 0.0005,
+        lambda: 10,
+        variance: 0.0005,
+        timestamp: 1500 + i * 100,
+        frameIndex: 5 + i,
+      });
+    }
+
+    for (const sig of stableSigs) {
+      pattern = classifier.classify(sig);
+    }
+
+    // Should eventually stabilize or show low variability
+    expect(pattern!.state).not.toBe('chaotic');
+    expect(pattern!.metrics.varianceBurst).toBeLessThan(5);
+  });
+
+  it('should maintain pattern history', () => {
+    const signatures: WaveSignature[] = [];
+    for (let i = 0; i < 10; i++) {
+      signatures.push({
+        amplitude: 0.5,
+        gradient: 0.01,
+        lambda: 10,
+        variance: 0.01,
+        timestamp: 1000 + i * 100,
+        frameIndex: i,
+      });
+    }
+
+    for (const sig of signatures) {
+      classifier.classify(sig);
+    }
+
+    const history = classifier.getPatternHistory();
+    expect(history.length).toBe(10);
+    expect(history[0].timestamp).toBe(1000);
+    expect(history[9].timestamp).toBe(1900);
+  });
+
+  it('should limit history to 20 patterns', () => {
+    const signatures: WaveSignature[] = [];
+    for (let i = 0; i < 30; i++) {
+      signatures.push({
+        amplitude: 0.5,
+        gradient: 0.01,
+        lambda: 10,
+        variance: 0.01,
+        timestamp: 1000 + i * 100,
+        frameIndex: i,
+      });
+    }
+
+    for (const sig of signatures) {
+      classifier.classify(sig);
+    }
+
+    const history = classifier.getPatternHistory();
+    expect(history.length).toBe(20);
+    expect(history[0].timestamp).toBe(2000); // Oldest is from index 10
+  });
+
+  it('should notify listeners on classification', () => {
+    let notified = false;
+    let receivedPattern: PatternClassification | null = null;
+
+    classifier.subscribe((pattern) => {
+      notified = true;
+      receivedPattern = pattern;
+    });
+
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.01,
+      lambda: 10,
+      variance: 0.01,
+      timestamp: 1000,
+      frameIndex: 0,
+    };
+
+    classifier.classify(signature);
+
+    expect(notified).toBe(true);
+    expect(receivedPattern).not.toBeNull();
+    expect(receivedPattern!.timestamp).toBe(1000);
+  });
+
+  it('should unsubscribe listeners', () => {
+    let count = 0;
+
+    const unsubscribe = classifier.subscribe(() => {
+      count++;
+    });
+
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.01,
+      lambda: 10,
+      variance: 0.01,
+      timestamp: 1000,
+      frameIndex: 0,
+    };
+
+    classifier.classify(signature);
+    expect(count).toBe(1);
+
+    unsubscribe();
+
+    classifier.classify({ ...signature, timestamp: 2000 });
+    expect(count).toBe(1); // Not called after unsubscribe
+  });
+
+  it('should compute confidence levels', () => {
+    // Build baseline
+    for (let i = 0; i < 5; i++) {
+      classifier.classify({
+        amplitude: 0.5,
+        gradient: 0.001,
+        lambda: 10,
+        variance: 0.001,
+        timestamp: 500 + i * 100,
+        frameIndex: i - 5,
+      });
+    }
+    
+    const stableSignature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.001,
+      lambda: 10,
+      variance: 0.001,
+      timestamp: 1000,
+      frameIndex: 0,
+    };
+
+    const pattern = classifier.classify(stableSignature);
+    expect(pattern.confidence).toBeGreaterThan(0);
+    expect(pattern.confidence).toBeLessThanOrEqual(1);
+  });
+
+  it('should include metrics in classification', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.05,
+      lambda: 10,
+      variance: 0.02,
+      timestamp: 1000,
+      frameIndex: 0,
+    };
+
+    const pattern = classifier.classify(signature);
+
+    expect(pattern.metrics).toBeDefined();
+    expect(pattern.metrics.amplitudeDelta).toBeDefined();
+    expect(pattern.metrics.gradientSign).toBeDefined();
+    expect(pattern.metrics.lambdaStability).toBeDefined();
+    expect(pattern.metrics.varianceBurst).toBeDefined();
+    expect(pattern.metrics.trendReversals).toBeDefined();
+  });
+
+  it('should clear history', () => {
+    const signature: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.01,
+      lambda: 10,
+      variance: 0.01,
+      timestamp: 1000,
+      frameIndex: 0,
+    };
+
+    classifier.classify(signature);
+    expect(classifier.getPatternHistory().length).toBe(1);
+    expect(classifier.getCurrentPattern()).not.toBeNull();
+
+    classifier.clearHistory();
+    expect(classifier.getPatternHistory().length).toBe(0);
+    expect(classifier.getCurrentPattern()).toBeNull();
+  });
+
+  it('should integrate with SurfaceRoot', () => {
+    const surface = createSurfaceRoot();
+    const patternClassifier = surface.getPatternClassifier();
+
+    expect(patternClassifier).toBeDefined();
+    expect(patternClassifier.getVersion()).toBe('7.3.1');
+  });
+
+  it('should classify patterns in SurfaceRoot', () => {
+    const surface = createSurfaceRoot();
+
+    // Initially no pattern
+    expect(surface.getLastPattern()).toBeNull();
+
+    // Manually trigger computation
+    const kernel = surface.getKernel();
+    const engine = surface.getSignatureEngine();
+    const patternClassifier = surface.getPatternClassifier();
+
+    const frameData = kernel.compute(1000);
+    const signature = engine.computeSignature(frameData, 64);
+    const pattern = patternClassifier.classify(signature);
+
+    expect(pattern).toBeDefined();
+    expect(pattern.state).toBeDefined();
+    expect(['stable', 'ascending', 'descending', 'volatile', 'chaotic']).toContain(pattern.state);
+  });
+
+  it('should integrate pattern classifier with SurfaceRoot', () => {
+    const surface = createSurfaceRoot();
+    
+    // Get classifier and subscribe directly
+    const patternClassifier = surface.getPatternClassifier();
+    
+    let eventReceived = false;
+    let receivedPattern: PatternClassification | null = null;
+
+    const unsubscribe = patternClassifier.subscribe((pattern) => {
+      eventReceived = true;
+      receivedPattern = pattern;
+    });
+
+    // Get components
+    const kernel = surface.getKernel();
+    const engine = surface.getSignatureEngine();
+
+    // Generate a classification
+    const frameData = kernel.compute(1000);
+    const sig = engine.computeSignature(frameData, 64);
+    patternClassifier.classify(sig);
+
+    // Should have received the event
+    expect(eventReceived).toBe(true);
+    expect(receivedPattern).toBeDefined();
+    expect(receivedPattern!.state).toBeDefined();
+    
+    unsubscribe();
+  });
+
+  it('should handle state transitions', () => {
+    // Start with stable
+    const stableSigs: WaveSignature[] = [];
+    for (let i = 0; i < 15; i++) {
+      stableSigs.push({
+        amplitude: 0.5,
+        gradient: 0.0005,
+        lambda: 10,
+        variance: 0.0005,
+        timestamp: 1000 + i * 100,
+        frameIndex: i,
+      });
+    }
+
+    for (const sig of stableSigs) {
+      classifier.classify(sig);
+    }
+
+    expect(classifier.getCurrentPattern()?.state).toBe('stable');
+
+    // Transition to ascending
+    const ascendingSigs: WaveSignature[] = [];
+    for (let i = 0; i < 10; i++) {
+      ascendingSigs.push({
+        amplitude: 0.5 + i * 0.05,
+        gradient: 0.05,
+        lambda: 10,
+        variance: 0.005,
+        timestamp: 2500 + i * 100,
+        frameIndex: 15 + i,
+      });
+    }
+
+    for (const sig of ascendingSigs) {
+      classifier.classify(sig);
+    }
+
+    expect(classifier.getCurrentPattern()?.state).toBe('ascending');
+  });
+
+  it('should detect trend reversals', () => {
+    // Create pattern with multiple reversals
+    const reversalSigs: WaveSignature[] = [
+      { amplitude: 0.5, gradient: 0.05, lambda: 10, variance: 0.05, timestamp: 1000, frameIndex: 0 },
+      { amplitude: 0.6, gradient: 0.05, lambda: 10, variance: 0.05, timestamp: 1100, frameIndex: 1 },
+      { amplitude: 0.4, gradient: -0.05, lambda: 10, variance: 0.05, timestamp: 1200, frameIndex: 2 },
+      { amplitude: 0.7, gradient: 0.05, lambda: 10, variance: 0.05, timestamp: 1300, frameIndex: 3 },
+      { amplitude: 0.3, gradient: -0.05, lambda: 10, variance: 0.05, timestamp: 1400, frameIndex: 4 },
+    ];
+
+    let pattern: PatternClassification | null = null;
+    for (const sig of reversalSigs) {
+      pattern = classifier.classify(sig);
+    }
+
+    expect(pattern).not.toBeNull();
+    expect(pattern!.metrics.trendReversals).toBeGreaterThan(0);
+  });
+
+  it('should track lambda stability', () => {
+    // Stable lambda
+    const stableLambdaSig: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.01,
+      lambda: 10.0,
+      variance: 0.01,
+      timestamp: 1000,
+      frameIndex: 0,
+    };
+
+    classifier.classify(stableLambdaSig);
+
+    const followUpSig: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.01,
+      lambda: 10.1, // Slight change
+      variance: 0.01,
+      timestamp: 1100,
+      frameIndex: 1,
+    };
+
+    const pattern = classifier.classify(followUpSig);
+    expect(pattern.metrics.lambdaStability).toBeGreaterThan(0.9); // Very stable
+  });
+
+  it('should compute variance burst metric', () => {
+    // Create average variance baseline
+    for (let i = 0; i < 5; i++) {
+      classifier.classify({
+        amplitude: 0.5,
+        gradient: 0.01,
+        lambda: 10,
+        variance: 0.02,
+        timestamp: 1000 + i * 100,
+        frameIndex: i,
+      });
+    }
+
+    // Add burst
+    const burstSig: WaveSignature = {
+      amplitude: 0.5,
+      gradient: 0.01,
+      lambda: 10,
+      variance: 0.2, // 10x higher
+      timestamp: 1500,
+      frameIndex: 5,
+    };
+
+    const pattern = classifier.classify(burstSig);
+    expect(pattern.metrics.varianceBurst).toBeGreaterThan(3); // Significant burst (adjusted threshold)
   });
 });

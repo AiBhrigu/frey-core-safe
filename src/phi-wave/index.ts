@@ -15,11 +15,13 @@
  * - SurfaceRoot: Main orchestrator
  * - PhiPresetHotSwitch (Q7.1): Runtime preset switching
  * - WaveSignatureEngine (Q7.3): Wave signature computation
+ * - PhiPatternClassifier (Q7.3-P): Core interpretation layer
  * 
  * @module phi-wave
  * @tag q7-integrated
  * @tag q7.1-preset-hotswitch
  * @tag q7.3-signature-engine
+ * @tag q7.3-pattern-classifier
  */
 
 // Types
@@ -73,6 +75,10 @@ export { PhiPresetHotSwitch, createPresetHotSwitch, Q7_HOTSWITCH_VERSION } from 
 // Q7.3 - Signature Engine
 export type { WaveSignature, SignatureOptions } from './signature-engine.js';
 export { WaveSignatureEngine, createSignatureEngine, Q7_SIGNATURE_VERSION } from './signature-engine.js';
+
+// Q7.3-P - Pattern Classifier
+export type { PatternState, PatternClassification, PatternListener } from './pattern-classifier.js';
+export { PhiPatternClassifier, createPatternClassifier, Q7_PATTERN_VERSION } from './pattern-classifier.js';
 
 // Demo
 export { generateDemoHTML, getDemoConfig } from './phi-wave-demo.js';
