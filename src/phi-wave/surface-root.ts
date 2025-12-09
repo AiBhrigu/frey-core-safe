@@ -31,6 +31,7 @@ import { PhiResonanceEngine, createResonanceEngine, type ResonanceClassification
 import { PhiCoherenceStabilizer, createCoherenceStabilizer, type CoherenceState } from './coherence-stabilizer.js';
 import { PhiModulationCore, createModulationCore, type ModulationData, type LayerWeights, type Q7CombinedState } from './q8/modulation-core.js';
 import { PhiPhaseModulator, createPhaseModulator, type PhaseModulatorState } from './q8/phase-modulator.js';
+import { PhiEntropyRegulator, createEntropyRegulator, type EntropyData, type EntropyState } from './q8/entropy-regulator.js';
 
 /**
  * Q7 Integration Version
@@ -102,6 +103,10 @@ export class SurfaceRoot {
   private phaseModulator: PhiPhaseModulator;
   private lastPhaseState: PhaseModulatorState | null = null;
   
+  // Q8.3 - Entropy Regulator
+  private entropyRegulator: PhiEntropyRegulator;
+  private lastEntropy: EntropyData | null = null;
+  
   // Render loop state
   private running: boolean = false;
   private animationFrameId: number | null = null;
@@ -151,6 +156,9 @@ export class SurfaceRoot {
     
     // Q8.2 - Initialize phase modulator
     this.phaseModulator = createPhaseModulator();
+    
+    // Q8.3 - Initialize entropy regulator
+    this.entropyRegulator = createEntropyRegulator();
     
     // Pre-allocate composite buffer
     this.compositeBuffer = new Float32Array(this.kernel.getPointCount());
@@ -419,6 +427,29 @@ export class SurfaceRoot {
         type: 'phase:update',
         timestamp: now,
         data: this.lastPhaseState,
+      });
+    }
+    
+    // Q8.3 - Compute entropy (non-blocking, final stabilization layer)
+    if (this.lastPattern && this.lastEmergent && this.lastResonance && this.lastCoherence && this.lastModulation) {
+      this.lastEntropy = this.entropyRegulator.update({
+        patternState: this.lastPattern.state,
+        emergentState: this.lastEmergent.state,
+        memoryDrift,
+        resonanceHDM: this.lastResonance.hdm,
+        coherencePCM: this.lastCoherence.pcm.value,
+        modulationIndex: this.lastModulation.modulationIndex,
+        coherenceState: this.lastCoherence.state,
+      });
+      
+      // Advance history buffer for next frame
+      this.entropyRegulator.advanceHistory();
+      
+      // Emit entropy:update via sync bus
+      this.syncBus.emit({
+        type: 'entropy:update',
+        timestamp: now,
+        data: this.lastEntropy,
       });
     }
     
@@ -774,6 +805,34 @@ export class SurfaceRoot {
    */
   getPSI(): number | null {
     return this.lastPhaseState ? this.lastPhaseState.psi : null;
+  }
+  
+  /**
+   * Q8.3 - Get entropy regulator
+   */
+  getEntropyRegulator(): PhiEntropyRegulator {
+    return this.entropyRegulator;
+  }
+  
+  /**
+   * Q8.3 - Get current entropy value
+   */
+  getEntropy(): number {
+    return this.entropyRegulator.getEntropy();
+  }
+  
+  /**
+   * Q8.3 - Get System Stability Score (SSS)
+   */
+  getSSS(): number {
+    return this.entropyRegulator.getSSS();
+  }
+  
+  /**
+   * Q8.3 - Get entropy state
+   */
+  getEntropyState(): EntropyState {
+    return this.entropyRegulator.getEntropyState();
   }
   
   /**

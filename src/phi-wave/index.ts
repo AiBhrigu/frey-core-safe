@@ -192,6 +192,36 @@
  * The Phase Modulator protects emergent and pattern layers from harsh transitions,
  * ensuring smooth phase evolution even during turbulent modulation states.
  * 
+ * ### Q8.3 Entropy Regulator
+ * 
+ * The Entropy Regulator acts as the final stabilization layer in the Q8 meta-control
+ * system, managing system-wide entropy to prevent runaway behavior and chaotization
+ * under high load.
+ * 
+ * #### Key Features
+ * 
+ * 1. **Entropy Field Calculator**: Computes entropy across 5 channels:
+ *    - Pattern entropy (pattern state variance)
+ *    - Emergent entropy (state oscillation frequency)
+ *    - Memory entropy (drift variance × Markov spread)
+ *    - Resonance entropy (harmonic scatter)
+ *    - Coherence entropy (PCM turbulence)
+ * 2. **φ-Attenuation Damping**: Applies φ-based damping to control energy dissipation:
+ *    - entropy > 0.6 → φ⁻¹ damping (0.618)
+ *    - entropy > 0.8 → φ⁻² hard clamp (0.382)
+ * 3. **System Stability Score (SSS)**: Composite metric computed as:
+ *    sss = (1 - entropy) × coherence × (1 - modulationIndex)
+ * 4. **4-State Classification**: low (≤0.30), moderate (≤0.55), high (≤0.75), critical (>0.75)
+ * 
+ * #### Entropy Regulation Philosophy
+ * 
+ * The Entropy Regulator works over all Q7 layers and Q8.1/Q8.2 outputs to form a global
+ * stability coefficient. It prevents cascade failures by detecting early signs of system
+ * chaotization and applying φ-based damping before instability propagates.
+ * 
+ * This completes the Q8 Meta-Control Layer trilogy (Modulation → Phase → Entropy),
+ * providing comprehensive adaptive control over the φ-wave interpretation stack.
+ * 
  * @module phi-wave
  * @tag q7-integrated
  * @tag q7.1-preset-hotswitch
@@ -284,6 +314,10 @@ export { PhiModulationCore, createModulationCore, Q8_MOD_CORE_VERSION } from './
 // Q8.2 - Phase Modulator
 export type { PhaseStability, PhaseModulatorState, PhaseListener } from './q8/phase-modulator.js';
 export { PhiPhaseModulator, createPhaseModulator, Q8_PHASE_VERSION } from './q8/phase-modulator.js';
+
+// Q8.3 - Entropy Regulator
+export type { EntropyState, EntropyData, EntropyListener } from './q8/entropy-regulator.js';
+export { PhiEntropyRegulator, createEntropyRegulator, Q8_ENTROPY_VERSION } from './q8/entropy-regulator.js';
 
 // Demo
 export { generateDemoHTML, getDemoConfig } from './phi-wave-demo.js';
