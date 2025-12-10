@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cosmography v8 - AUREL Foundation</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #000;
+      color: #fff;
+      overflow-x: hidden;
+    }
+
+    /* AUREL Axis Light */
+    #aurel-axis {
+      position: fixed;
+      left: 50%;
+      top: 0;
+      width: 1px;
+      height: 100vh;
+      background: rgba(255, 255, 255, 0.03);
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* AUREL Sigil (T15) */
+    #aurel-sigil {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      width: 48px;
+      height: 48px;
+      opacity: 0.05;
+      pointer-events: none;
+      z-index: 9998;
+    }
+
+    /* Content container for demonstration */
+    .content {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 300;
+      letter-spacing: 0.1em;
+    }
+
+    .info {
+      font-size: 0.875rem;
+      opacity: 0.5;
+      text-align: center;
+      max-width: 600px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <!-- AUREL Axis Light -->
+  <div id="aurel-axis"></div>
+
+  <!-- AUREL Sigil (T15) -->
+  <img id="aurel-sigil" src="./aurel/sigil.svg" alt="AUREL">
+
+  <div class="content">
+    <h1>COSMOGRAPHY v8</h1>
+    <p class="info">
+      AUREL Foundation initialized.<br>
+      Baseline lightfield active. Presence protocol ready.
+    </p>
+  </div>
+
+  <!-- AUREL Module Imports (for validation) -->
+  <script type="module">
+    // Validate AUREL modules import cleanly
+    import { PHI, PHI2, PHI3 } from './aurel/constants.js';
+    import { AurelContext } from './aurel/aurel.context.js';
+    import { AurelObserver } from './aurel/aurel.observer.js';
+    import { AurelPresence } from './aurel/aurel.presence.js';
+    import { AurelLightfield } from './aurel/aurel.lightfield.js';
+
+    console.log('AUREL Foundation: All modules imported successfully');
+    console.log('φ Constants:', { PHI, PHI2, PHI3 });
+    console.log('AurelContext:', AurelContext);
+    console.log('AurelObserver:', AurelObserver);
+  </script>
+</body>
+</html>
