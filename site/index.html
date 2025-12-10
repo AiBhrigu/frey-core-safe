@@ -30,6 +30,18 @@
       z-index: 9999;
     }
 
+    /* AUREL Sigil (T15) */
+    #aurel-sigil {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      width: 48px;
+      height: 48px;
+      opacity: 0.05;
+      pointer-events: none;
+      z-index: 9998;
+    }
+
     /* Content container for demonstration */
     .content {
       min-height: 100vh;
@@ -59,11 +71,14 @@
   <!-- AUREL Axis Light -->
   <div id="aurel-axis"></div>
 
+  <!-- AUREL Sigil (T15) -->
+  <img id="aurel-sigil" src="./aurel/sigil.svg" alt="AUREL">
+
   <div class="content">
     <h1>COSMOGRAPHY v8</h1>
     <p class="info">
       AUREL Foundation initialized.<br>
-      Baseline axis rendered. Lightfield engine skeleton awaiting activation.
+      Baseline lightfield active. Presence protocol ready.
     </p>
   </div>
 

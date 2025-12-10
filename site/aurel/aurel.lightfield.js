@@ -1,4 +1,4 @@
-// AUREL Lightfield Engine Skeleton (T6-T10)
+// AUREL Lightfield Engine Skeleton (T6-T10, T17)
 // All functions are empty stubs - no logic or behavior
 export const Lightfield = {
   axisPulse: () => {},
@@ -8,4 +8,5 @@ export const Lightfield = {
   memoryFlash: () => {},
   cycleRing: () => {},
   microShift: () => {},
+  staticLightfieldBaseline: () => {},
 };
