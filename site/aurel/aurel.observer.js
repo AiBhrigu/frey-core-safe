@@ -4,4 +4,6 @@ export const AurelObserver = {
   onDepthShift: () => {},
   onNodeEnter: () => {},
   onNodeExit: () => {},
+  onCorridorEnter: () => {},
+  onCorridorExit: () => {},
 };
